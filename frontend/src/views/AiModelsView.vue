@@ -419,6 +419,9 @@ onMounted(load)
                   {{ row.accessKeyConfigured ? 'AK' : '' }}
                   {{ row.accessKeyConfigured && row.secretKeyConfigured ? ' / ' : '' }}
                   {{ row.secretKeyConfigured ? 'SK' : '' }}
+                  {{ !row.accessKeyConfigured && !row.secretKeyConfigured
+                    ? t('aiModels.notConfigured')
+                    : '' }}
                 </span>
               </div>
             </template>

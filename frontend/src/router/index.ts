@@ -209,6 +209,16 @@ const routes: RouteRecordRaw[] = [
           permission: 'basic:storage:view',
         },
       },
+      {
+        path: 'basic/models',
+        name: 'ai-models',
+        component: () => import('@/views/AiModelsView.vue'),
+        meta: {
+          titleKey: 'aiModels.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:model:view',
+        },
+      },
     ],
   },
   {

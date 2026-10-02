@@ -107,6 +107,9 @@ public class AiModelServiceImpl implements AiModelService {
     public ModelSummary update(long id, ModelRequest request) {
         AiModel model = requireModel(id);
         apply(model, request, true);
+        if (Boolean.TRUE.equals(model.getEnabled())) {
+            requireCredentials(model);
+        }
         model.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
         try {
             modelMapper.updateById(model);
@@ -120,6 +123,9 @@ public class AiModelServiceImpl implements AiModelService {
     @Transactional
     public ModelSummary changeStatus(long id, boolean enabled) {
         AiModel model = requireModel(id);
+        if (enabled) {
+            requireCredentials(model);
+        }
         model.setEnabled(enabled);
         model.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
         modelMapper.updateById(model);
@@ -290,6 +296,13 @@ public class AiModelServiceImpl implements AiModelService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Model not found");
         }
         return model;
+    }
+
+    private void requireCredentials(AiModel model) {
+        if (!StringUtils.hasText(model.getAccessKeyCiphertext())
+                && !StringUtils.hasText(model.getSecretKeyCiphertext())) {
+            throw invalid("Configure at least one model credential before enabling the model");
+        }
     }
 
     private ModelSummary summary(AiModel model) {

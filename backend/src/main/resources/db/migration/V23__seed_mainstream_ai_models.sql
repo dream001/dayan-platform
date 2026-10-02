@@ -1,0 +1,42 @@
+INSERT INTO ai_model (
+    manufacturer,
+    name,
+    access_address,
+    model_url,
+    model_type,
+    enabled
+)
+VALUES
+    (
+        '豆包',
+        'doubao-seed-1-6-250615',
+        'https://ark.cn-beijing.volces.com',
+        'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+        'CHAT',
+        FALSE
+    ),
+    (
+        '阿里云百炼（千问）',
+        'qwen-plus',
+        'https://dashscope.aliyuncs.com',
+        'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+        'CHAT',
+        FALSE
+    ),
+    (
+        'DeepSeek',
+        'deepseek-chat',
+        'https://api.deepseek.com',
+        'https://api.deepseek.com/chat/completions',
+        'CHAT',
+        FALSE
+    ),
+    (
+        'OpenAI',
+        'gpt-4.1-mini',
+        'https://api.openai.com',
+        'https://api.openai.com/v1/chat/completions',
+        'CHAT',
+        FALSE
+    )
+ON CONFLICT (manufacturer, name) DO NOTHING;
