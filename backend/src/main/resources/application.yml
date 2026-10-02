@@ -1,0 +1,80 @@
+spring:
+  application:
+    name: ${APP_NAME:dayan-platform}
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/dayan}
+    username: ${DATABASE_USERNAME:dayan}
+    password: ${DATABASE_PASSWORD:dayan}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_MAX_SIZE:10}
+      minimum-idle: ${DATABASE_POOL_MIN_IDLE:2}
+      connection-timeout: ${DATABASE_CONNECTION_TIMEOUT_MS:30000}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-migration-naming: true
+  jackson:
+    default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: ${FILE_MAX_SIZE:20MB}
+      max-request-size: ${FILE_MAX_REQUEST_SIZE:21MB}
+  threads:
+    virtual:
+      enabled: ${VIRTUAL_THREADS_ENABLED:true}
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+
+app:
+  environment: ${APP_ENVIRONMENT:local}
+  version: ${APP_VERSION:0.0.1-SNAPSHOT}
+  initial-admin:
+    enabled: ${INITIAL_ADMIN_ENABLED:false}
+    username: ${INITIAL_ADMIN_USERNAME:admin}
+    display-name: ${INITIAL_ADMIN_DISPLAY_NAME:System Administrator}
+    email: ${INITIAL_ADMIN_EMAIL:}
+    password: ${INITIAL_ADMIN_PASSWORD:}
+  api:
+    base-path: ${API_BASE_PATH:/api/v1}
+    request-id-header: ${REQUEST_ID_HEADER:X-Request-Id}
+  security:
+    jwt-secret: ${JWT_SECRET:local-development-secret-change-me-32-bytes}
+    issuer: ${JWT_ISSUER:dayan-platform}
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:15m}
+    refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:7d}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8887}
+  storage:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:${MINIO_ENDPOINT:http://localhost:9000}}
+    access-key: ${MINIO_ACCESS_KEY:dayan_minio}
+    secret-key: ${MINIO_SECRET_KEY:dayan_minio_password}
+    bucket: ${MINIO_BUCKET:dayan-files}
+    max-file-size: ${FILE_MAX_SIZE:20MB}
+    allowed-content-types: ${FILE_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/gif,application/pdf,text/plain,text/csv,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}
+    preview-ttl: ${FILE_PREVIEW_TTL:5m}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  pattern:
+    correlation: "[%X{requestId:-}] "

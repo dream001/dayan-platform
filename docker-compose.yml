@@ -1,0 +1,140 @@
+name: dayan-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dayan}
+      POSTGRES_USER: ${POSTGRES_USER:-dayan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dayan_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - dayan-network
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-dayan_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-dayan_minio_password}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - dayan-network
+
+  minio-init:
+    image: minio/mc:latest
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-dayan_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-dayan_minio_password}
+      MINIO_BUCKET: ${MINIO_BUCKET:-dayan-files}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb --ignore-existing "local/$${MINIO_BUCKET}"
+    networks:
+      - dayan-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8080
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-docker}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-dayan}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-dayan}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dayan_dev_password}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-dayan_minio}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-dayan_minio_password}
+      MINIO_BUCKET: ${MINIO_BUCKET:-dayan-files}
+      FILE_MAX_SIZE: ${FILE_MAX_SIZE:-20MB}
+      FILE_MAX_REQUEST_SIZE: ${FILE_MAX_REQUEST_SIZE:-21MB}
+      FILE_ALLOWED_CONTENT_TYPES: ${FILE_ALLOWED_CONTENT_TYPES:-image/jpeg,image/png,image/gif,application/pdf,text/plain,text/csv,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}
+      FILE_PREVIEW_TTL: ${FILE_PREVIEW_TTL:-5m}
+      JWT_SECRET: ${JWT_SECRET:-replace-with-at-least-32-random-characters}
+      JWT_ISSUER: ${JWT_ISSUER:-dayan-platform}
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-15m}
+      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-7d}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8887}
+      INITIAL_ADMIN_ENABLED: ${INITIAL_ADMIN_ENABLED:-true}
+      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-admin}
+      INITIAL_ADMIN_DISPLAY_NAME: ${INITIAL_ADMIN_DISPLAY_NAME:-System Administrator}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-admin@example.com}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-change_me_now_2026}
+    ports:
+      - "${BACKEND_PORT:-5001}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - dayan-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8887}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - dayan-network
+
+volumes:
+  postgres_data:
+  minio_data:
+
+networks:
+  dayan-network:
+    driver: bridge
