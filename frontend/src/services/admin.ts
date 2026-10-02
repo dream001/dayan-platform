@@ -6,6 +6,7 @@ import type {
   DepartmentPayload,
   FilePreview,
   MenuNode,
+  MenuOrderPayload,
   MenuPayload,
   OperationLogDetail,
   OperationLogSummary,
@@ -126,6 +127,10 @@ export async function createMenu(payload: MenuPayload) {
 
 export async function updateMenu(id: number, payload: MenuPayload) {
   return data(await http.put<ApiResponse<MenuNode>>(`/system/menus/${id}`, payload))
+}
+
+export async function reorderMenus(payload: MenuOrderPayload) {
+  return data(await http.put<ApiResponse<MenuNode[]>>('/system/menus/order', payload))
 }
 
 export async function deleteMenu(id: number) {

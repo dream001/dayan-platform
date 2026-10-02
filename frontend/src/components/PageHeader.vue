@@ -1,18 +1,22 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 withDefaults(defineProps<{
   title: string
   description?: string
   eyebrow?: string
 }>(), {
   description: '',
-  eyebrow: '管理',
+  eyebrow: '',
 })
 </script>
 
 <template>
   <header class="page-header">
     <div>
-      <p>{{ eyebrow }}</p>
+      <p>{{ eyebrow || t('common.manage') }}</p>
       <h1>{{ title }}</h1>
       <span v-if="description">{{ description }}</span>
     </div>
@@ -71,7 +75,7 @@ withDefaults(defineProps<{
     flex-direction: column;
   }
 
-  .page-header__actions :deep(.el-button) {
+  .page-header__actions :deep(.el-button:not(.is-circle)) {
     flex: 1;
   }
 }

@@ -1,30 +1,32 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   status: '401' | '403' | '404'
 }>()
 
+const { t } = useI18n()
 const router = useRouter()
 const content = computed(() => ({
   '401': {
-    eyebrow: 'SESSION EXPIRED',
-    title: '登录已失效',
-    description: '当前会话无法继续，请重新登录。',
-    action: '重新登录',
+    eyebrow: t('status.401.eyebrow'),
+    title: t('status.401.title'),
+    description: t('status.401.description'),
+    action: t('status.401.action'),
   },
   '403': {
-    eyebrow: 'ACCESS DENIED',
-    title: '无权访问',
-    description: '当前账户没有访问此页面所需的权限。',
-    action: '返回上一页',
+    eyebrow: t('status.403.eyebrow'),
+    title: t('status.403.title'),
+    description: t('status.403.description'),
+    action: t('status.403.action'),
   },
   '404': {
-    eyebrow: 'PAGE NOT FOUND',
-    title: '页面不存在',
-    description: '地址可能已变更，或该功能尚未开放。',
-    action: '返回工作台',
+    eyebrow: t('status.404.eyebrow'),
+    title: t('status.404.title'),
+    description: t('status.404.description'),
+    action: t('status.404.action'),
   },
 })[props.status])
 

@@ -6,6 +6,8 @@ import 'element-plus/theme-chalk/el-tooltip.css'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import NavigationTree from '@/components/NavigationTree.vue'
 import { confirmAction, notifyError } from '@/services/feedback'
 import { useAuthStore } from '@/stores/auth'
@@ -13,27 +15,43 @@ import { useLayoutStore } from '@/stores/layout'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const layoutStore = useLayoutStore()
 const authStore = useAuthStore()
 const { isMobileNavigationOpen, isSidebarCollapsed, sidebarWidth } = storeToRefs(layoutStore)
 const { displayName, navigation } = storeToRefs(authStore)
 
-const environmentLabel = import.meta.env.MODE === 'production' ? '生产环境' : '开发环境'
+const environmentLabel = computed(() =>
+  import.meta.env.MODE === 'production' ? t('env.production') : t('env.development'),
+)
+function resolveKey(key?: string): string | undefined {
+  if (typeof key !== 'string') return undefined
+  const translated = t(key)
+  return translated === key ? undefined : translated
+}
 const pageTitle = computed(() =>
-  typeof route.meta.title === 'string' ? route.meta.title : '工作台',
+  resolveKey(route.meta.titleKey)
+  ?? (typeof route.meta.title === 'string' ? route.meta.title : undefined)
+  ?? t('shell.defaultTitle'),
 )
 const pageEyebrow = computed(() =>
-  typeof route.meta.eyebrow === 'string' ? route.meta.eyebrow : '管理平台',
+  resolveKey(route.meta.eyebrowKey)
+  ?? (typeof route.meta.eyebrow === 'string' ? route.meta.eyebrow : undefined)
+  ?? t('shell.defaultEyebrow'),
 )
 const accountInitial = computed(() => displayName.value.slice(0, 1).toUpperCase() || '—')
 
 async function handleLogout() {
-  const confirmed = await confirmAction('退出后需要重新登录才能继续访问。', '退出登录', '退出')
+  const confirmed = await confirmAction(
+    t('shell.logout.confirm'),
+    t('shell.logout.title'),
+    t('shell.logout.button'),
+  )
   if (!confirmed) return
   try {
     await authStore.signOut()
   } catch (error) {
-    notifyError(error, '服务端退出失败，本地会话已清除')
+    notifyError(error, t('shell.logout.remoteFailed'))
   } finally {
     await router.replace({ name: 'login' })
   }
@@ -50,7 +68,7 @@ async function handleLogout() {
       v-if="isMobileNavigationOpen"
       class="navigation-scrim"
       type="button"
-      aria-label="关闭导航"
+      :aria-label="t('shell.closeNav')"
       @click="layoutStore.closeMobileNavigation"
     />
 
@@ -58,7 +76,7 @@ async function handleLogout() {
       id="primary-navigation"
       class="sidebar"
       :class="{ 'sidebar--mobile-open': isMobileNavigationOpen }"
-      aria-label="主导航"
+      :aria-label="t('shell.primaryNav')"
     >
       <div class="brand">
         <div
@@ -69,14 +87,14 @@ async function handleLogout() {
           <span />
         </div>
         <div class="brand__copy">
-          <strong>大雁</strong>
-          <span>管理平台</span>
+          <strong>{{ t('app.brand') }}</strong>
+          <span>{{ t('app.platform') }}</span>
         </div>
       </div>
 
       <nav class="navigation">
         <p class="navigation__label">
-          工作区
+          {{ t('shell.workspace') }}
         </p>
         <NavigationTree
           v-if="navigation.length"
@@ -87,7 +105,7 @@ async function handleLogout() {
           v-else
           class="navigation__empty"
         >
-          当前账户暂无菜单
+          {{ t('shell.noMenu') }}
         </p>
       </nav>
 
@@ -97,8 +115,8 @@ async function handleLogout() {
           aria-hidden="true"
         />
         <div class="sidebar__status">
-          <strong>身份已验证</strong>
-          <span>权限配置已同步</span>
+          <strong>{{ t('shell.identityVerified') }}</strong>
+          <span>{{ t('shell.permissionsSynced') }}</span>
         </div>
       </div>
     </aside>
@@ -110,7 +128,7 @@ async function handleLogout() {
           type="button"
           aria-controls="primary-navigation"
           :aria-expanded="isMobileNavigationOpen"
-          aria-label="打开导航"
+          :aria-label="t('shell.openNav')"
           @click="layoutStore.toggleMobileNavigation"
         >
           <el-icon :size="20">
@@ -119,13 +137,13 @@ async function handleLogout() {
         </button>
 
         <el-tooltip
-          :content="isSidebarCollapsed ? '展开导航' : '收起导航'"
+          :content="isSidebarCollapsed ? t('shell.expandNav') : t('shell.collapseNav')"
           placement="bottom"
         >
           <button
             class="icon-button icon-button--desktop"
             type="button"
-            :aria-label="isSidebarCollapsed ? '展开导航' : '收起导航'"
+            :aria-label="isSidebarCollapsed ? t('shell.expandNav') : t('shell.collapseNav')"
             @click="layoutStore.toggleSidebar"
           >
             <el-icon :size="18">
@@ -155,7 +173,7 @@ async function handleLogout() {
           <RouterLink
             class="account"
             to="/profile"
-            aria-label="当前身份"
+            :aria-label="t('shell.currentIdentity')"
           >
             <span
               class="account__avatar"
@@ -163,14 +181,15 @@ async function handleLogout() {
             >{{ accountInitial }}</span>
             <span class="account__label">{{ displayName }}</span>
           </RouterLink>
+          <LanguageSwitcher />
           <el-tooltip
-            content="退出登录"
+            :content="t('shell.logout.title')"
             placement="bottom"
           >
             <button
               class="icon-button logout-button"
               type="button"
-              aria-label="退出登录"
+              :aria-label="t('shell.logout.title')"
               @click="handleLogout"
             >
               <el-icon :size="17">

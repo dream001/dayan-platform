@@ -5,6 +5,7 @@ import {
   getAuditLogs,
   getDashboardStatistics,
   grantRolePermissions,
+  reorderMenus,
   uploadFile,
 } from './admin'
 import { http } from './http'
@@ -91,6 +92,23 @@ describe('management API contracts', () => {
       startTime: '2026-10-01T00:00:00Z',
       endTime: '2026-10-02T00:00:00Z',
     })).resolves.toEqual(page)
+  })
+
+  it('submits the complete sibling order for menu sorting', async () => {
+    http.defaults.adapter = async (config) => {
+      expect(config.url).toBe('/system/menus/order')
+      expect(config.method).toBe('put')
+      expect(JSON.parse(String(config.data))).toEqual({
+        parentId: 1100,
+        ids: [1130, 1120, 1110],
+      })
+      return apiResponse(config, [])
+    }
+
+    await expect(reorderMenus({
+      parentId: 1100,
+      ids: [1130, 1120, 1110],
+    })).resolves.toEqual([])
   })
 
   it('uploads the selected file under the multipart field named file', async () => {

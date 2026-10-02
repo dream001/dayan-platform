@@ -112,6 +112,11 @@ export interface MenuPayload {
   enabled: boolean
 }
 
+export interface MenuOrderPayload {
+  parentId: number | null
+  ids: number[]
+}
+
 export interface StoredFile {
   id: number
   originalName: string

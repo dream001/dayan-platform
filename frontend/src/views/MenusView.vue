@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+import { ArrowDown, ArrowUp, Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatePanel from '@/components/StatePanel.vue'
-import { createMenu, deleteMenu, getMenus, updateMenu } from '@/services/admin'
+import { createMenu, deleteMenu, getMenus, reorderMenus, updateMenu } from '@/services/admin'
 import { confirmAction, getErrorMessage, notifyError } from '@/services/feedback'
 import type { MenuNode, MenuPayload } from '@/types/admin'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const error = ref('')
@@ -15,6 +18,7 @@ const drawerOpen = ref(false)
 const mode = ref<'create' | 'edit'>('create')
 const editingId = ref<number | null>(null)
 const saving = ref(false)
+const sorting = ref(false)
 const form = reactive<MenuPayload>({
   parentId: null,
   type: 'MENU',
@@ -50,7 +54,7 @@ async function load() {
   try {
     menus.value = await getMenus()
   } catch (reason) {
-    error.value = getErrorMessage(reason, '菜单权限树加载失败')
+    error.value = getErrorMessage(reason, t('menus.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -94,11 +98,11 @@ function openEdit(node: MenuNode) {
 
 async function save() {
   if (!form.name.trim() || form.sortOrder < 0) {
-    ElMessage.warning('请填写名称，排序值不能小于 0')
+    ElMessage.warning(t('menus.validationName'))
     return
   }
   if (form.type === 'BUTTON' && (!form.parentId || !form.code.trim())) {
-    ElMessage.warning('按钮权限必须选择上级菜单并填写权限码')
+    ElMessage.warning(t('menus.buttonRequiresParent'))
     return
   }
   saving.value = true
@@ -113,15 +117,15 @@ async function save() {
     }
     if (mode.value === 'create') {
       await createMenu(payload)
-      ElMessage.success('菜单权限已新增')
+      ElMessage.success(t('menus.created'))
     } else if (editingId.value) {
       await updateMenu(editingId.value, payload)
-      ElMessage.success('菜单权限已更新')
+      ElMessage.success(t('menus.updated'))
     }
     drawerOpen.value = false
     await load()
   } catch (reason) {
-    notifyError(reason, '菜单权限保存失败')
+    notifyError(reason, t('menus.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -129,17 +133,54 @@ async function save() {
 
 async function remove(node: MenuNode) {
   const confirmed = await confirmAction(
-    `删除“${node.name}”？存在下级节点或角色引用时无法删除。`,
-    '删除菜单权限',
-    '删除',
+    t('menus.deleteConfirm', { name: node.name }),
+    t('menus.deleteTitle'),
+    t('common.delete'),
   )
   if (!confirmed) return
   try {
     await deleteMenu(node.id)
-    ElMessage.success('菜单权限已删除')
+    ElMessage.success(t('menus.deleted'))
     await load()
   } catch (reason) {
-    notifyError(reason, '菜单权限删除失败')
+    notifyError(reason, t('menus.deleteFailed'))
+  }
+}
+
+function findSiblings(items: MenuNode[], id: number): MenuNode[] | undefined {
+  if (items.some((item) => item.id === id)) return items
+  for (const item of items) {
+    const siblings = findSiblings(item.children, id)
+    if (siblings) return siblings
+  }
+  return undefined
+}
+
+function canMove(node: MenuNode, offset: -1 | 1) {
+  const siblings = findSiblings(menus.value, node.id)
+  if (!siblings) return false
+  const index = siblings.findIndex((item) => item.id === node.id)
+  return index + offset >= 0 && index + offset < siblings.length
+}
+
+async function moveNode(node: MenuNode, offset: -1 | 1) {
+  const siblings = findSiblings(menus.value, node.id)
+  if (!siblings) return
+  const index = siblings.findIndex((item) => item.id === node.id)
+  const targetIndex = index + offset
+  if (targetIndex < 0 || targetIndex >= siblings.length) return
+
+  const ids = siblings.map((item) => item.id)
+  const currentId = ids[index]!
+  ids[index] = ids[targetIndex]!
+  ids[targetIndex] = currentId
+  sorting.value = true
+  try {
+    menus.value = await reorderMenus({ parentId: node.parentId, ids })
+  } catch (reason) {
+    notifyError(reason, t('menus.reorderFailed'))
+  } finally {
+    sorting.value = false
   }
 }
 
@@ -149,16 +190,16 @@ onMounted(load)
 <template>
   <section class="admin-page">
     <PageHeader
-      title="菜单权限"
-      eyebrow="System / Permissions"
-      description="维护导航菜单与按钮权限码树。"
+      :title="t('menus.title')"
+      :eyebrow="t('menus.eyebrow')"
+      :description="t('menus.description')"
     >
       <template #actions>
-        <el-tooltip content="刷新权限树">
+        <el-tooltip :content="t('menus.refreshTree')">
           <el-button
             :icon="Refresh"
             circle
-            aria-label="刷新权限树"
+            :aria-label="t('menus.refreshTree')"
             :loading="loading"
             @click="load"
           />
@@ -169,7 +210,7 @@ onMounted(load)
           :icon="Plus"
           @click="openCreate()"
         >
-          新增节点
+          {{ t('menus.createNode') }}
         </el-button>
       </template>
     </PageHeader>
@@ -181,15 +222,15 @@ onMounted(load)
     <StatePanel
       v-else-if="error"
       state="error"
-      title="权限树加载失败"
+      :title="t('menus.loadFailed')"
       :description="error"
       @retry="load"
     />
     <StatePanel
       v-else-if="!menus.length"
       state="empty"
-      title="暂无菜单权限"
-      description="新增首个菜单节点以建立导航。"
+      :title="t('menus.empty')"
+      :description="t('menus.emptyDesc')"
     />
     <div
       v-else
@@ -203,7 +244,7 @@ onMounted(load)
       >
         <el-table-column
           prop="name"
-          label="名称"
+          :label="t('menus.name')"
           min-width="230"
           fixed="left"
         >
@@ -215,13 +256,13 @@ onMounted(load)
               :type="row.type === 'BUTTON' ? 'info' : undefined"
               effect="plain"
             >
-              {{ row.type === 'BUTTON' ? '按钮' : '菜单' }}
+              {{ row.type === 'BUTTON' ? t('menus.typeButton') : t('menus.typeMenu') }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column
           prop="code"
-          label="权限码"
+          :label="t('menus.code')"
           min-width="210"
         >
           <template #default="{ row }">
@@ -230,7 +271,7 @@ onMounted(load)
         </el-table-column>
         <el-table-column
           prop="path"
-          label="路径"
+          :label="t('menus.path')"
           min-width="160"
         >
           <template #default="{ row }">
@@ -239,7 +280,7 @@ onMounted(load)
         </el-table-column>
         <el-table-column
           prop="component"
-          label="组件标识"
+          :label="t('menus.component')"
           min-width="170"
           show-overflow-tooltip
         >
@@ -249,60 +290,82 @@ onMounted(load)
         </el-table-column>
         <el-table-column
           prop="sortOrder"
-          label="排序"
+          :label="t('menus.sort')"
           width="76"
           align="right"
         />
         <el-table-column
-          label="状态"
+          :label="t('common.status')"
           width="112"
         >
           <template #default="{ row }">
             <span :class="row.enabled ? 'status-on' : 'muted'">
-              {{ row.enabled ? '启用' : '停用' }}
+              {{ row.enabled ? t('menus.statusEnabled') : t('menus.statusDisabled') }}
             </span>
             <span
               v-if="row.type === 'MENU' && !row.visible"
               class="muted"
-            > · 隐藏</span>
+            > · {{ t('menus.hidden') }}</span>
           </template>
         </el-table-column>
         <el-table-column
-          label="操作"
-          width="138"
+          :label="t('common.operation')"
+          width="220"
           fixed="right"
         >
           <template #default="{ row }">
             <div class="table-actions">
-              <el-tooltip content="新增下级节点">
+              <el-tooltip :content="t('menus.moveUp')">
+                <el-button
+                  v-permission="'system:permission:sort'"
+                  :icon="ArrowUp"
+                  circle
+                  text
+                  :aria-label="t('menus.moveUpNode')"
+                  :disabled="sorting || !canMove(row, -1)"
+                  @click="moveNode(row, -1)"
+                />
+              </el-tooltip>
+              <el-tooltip :content="t('menus.moveDown')">
+                <el-button
+                  v-permission="'system:permission:sort'"
+                  :icon="ArrowDown"
+                  circle
+                  text
+                  :aria-label="t('menus.moveDownNode')"
+                  :disabled="sorting || !canMove(row, 1)"
+                  @click="moveNode(row, 1)"
+                />
+              </el-tooltip>
+              <el-tooltip :content="t('menus.addChild')">
                 <el-button
                   v-permission="'system:permission:create'"
                   :icon="Plus"
                   circle
                   text
-                  aria-label="新增下级节点"
+                  :aria-label="t('menus.addChild')"
                   :disabled="row.type === 'BUTTON'"
                   @click="openCreate(row)"
                 />
               </el-tooltip>
-              <el-tooltip content="编辑节点">
+              <el-tooltip :content="t('menus.editNode')">
                 <el-button
                   v-permission="'system:permission:update'"
                   :icon="Edit"
                   circle
                   text
-                  aria-label="编辑节点"
+                  :aria-label="t('menus.editNode')"
                   @click="openEdit(row)"
                 />
               </el-tooltip>
-              <el-tooltip content="删除节点">
+              <el-tooltip :content="t('menus.deleteNode')">
                 <el-button
                   v-permission="'system:permission:delete'"
                   :icon="Delete"
                   circle
                   text
                   type="danger"
-                  aria-label="删除节点"
+                  :aria-label="t('menus.deleteNode')"
                   @click="remove(row)"
                 />
               </el-tooltip>
@@ -314,7 +377,7 @@ onMounted(load)
 
     <el-drawer
       v-model="drawerOpen"
-      :title="mode === 'create' ? '新增菜单权限' : '编辑菜单权限'"
+      :title="mode === 'create' ? t('menus.drawerCreate') : t('menus.drawerEdit')"
       size="440px"
     >
       <el-form
@@ -323,20 +386,20 @@ onMounted(load)
         @submit.prevent="save"
       >
         <el-form-item
-          label="节点类型"
+          :label="t('menus.nodeType')"
           required
         >
           <el-radio-group v-model="form.type">
             <el-radio-button value="MENU">
-              菜单
+              {{ t('menus.typeMenu') }}
             </el-radio-button>
             <el-radio-button value="BUTTON">
-              按钮
+              {{ t('menus.typeButton') }}
             </el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item
-          label="上级菜单"
+          :label="t('menus.parentMenu')"
           :required="form.type === 'BUTTON'"
         >
           <el-tree-select
@@ -345,12 +408,12 @@ onMounted(load)
             :props="treeProps"
             check-strictly
             clearable
-            placeholder="无（顶级菜单）"
+            :placeholder="t('menus.noParent')"
             style="width: 100%"
           />
         </el-form-item>
         <el-form-item
-          label="名称"
+          :label="t('menus.name')"
           required
         >
           <el-input
@@ -359,37 +422,37 @@ onMounted(load)
           />
         </el-form-item>
         <el-form-item
-          label="权限码"
+          :label="t('menus.code')"
           :required="form.type === 'BUTTON'"
         >
           <el-input
             v-model="form.code"
             maxlength="100"
-            placeholder="例如 system:user:create"
+            :placeholder="t('menus.codePlaceholder')"
           />
         </el-form-item>
         <template v-if="form.type === 'MENU'">
-          <el-form-item label="路由路径">
+          <el-form-item :label="t('menus.pathField')">
             <el-input
               v-model="form.path"
               maxlength="255"
               placeholder="/system/users"
             />
           </el-form-item>
-          <el-form-item label="组件标识">
+          <el-form-item :label="t('menus.component')">
             <el-input
               v-model="form.component"
               maxlength="255"
             />
           </el-form-item>
-          <el-form-item label="图标标识">
+          <el-form-item :label="t('menus.iconField')">
             <el-input
               v-model="form.icon"
               maxlength="100"
             />
           </el-form-item>
         </template>
-        <el-form-item label="排序">
+        <el-form-item :label="t('menus.sort')">
           <el-input-number
             v-model="form.sortOrder"
             :min="0"
@@ -399,26 +462,26 @@ onMounted(load)
         </el-form-item>
         <el-form-item v-if="form.type === 'MENU'">
           <el-checkbox v-model="form.visible">
-            在导航中显示
+            {{ t('menus.showInNav') }}
           </el-checkbox>
         </el-form-item>
         <el-form-item>
           <el-checkbox v-model="form.enabled">
-            启用节点
+            {{ t('menus.enableNode') }}
           </el-checkbox>
         </el-form-item>
       </el-form>
       <template #footer>
         <div class="drawer-footer">
           <el-button @click="drawerOpen = false">
-            取消
+            {{ t('common.cancel') }}
           </el-button>
           <el-button
             type="primary"
             :loading="saving"
             @click="save"
           >
-            保存
+            {{ t('common.save') }}
           </el-button>
         </div>
       </template>

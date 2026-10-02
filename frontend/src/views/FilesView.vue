@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Delete, Download, Refresh, Upload, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
@@ -14,6 +15,8 @@ import {
 import { confirmAction, getErrorMessage, notifyError } from '@/services/feedback'
 import type { StoredFile } from '@/types/admin'
 import { formatBytes, formatDateTime } from '@/utils/format'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const error = ref('')
@@ -43,7 +46,7 @@ async function load() {
     files.value = page.items
     total.value = page.total
   } catch (reason) {
-    error.value = getErrorMessage(reason, '文件列表加载失败')
+    error.value = getErrorMessage(reason, t('files.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -67,11 +70,11 @@ async function upload(filesToUpload: FileList | File[]) {
     await uploadFile(file, (value) => {
       uploadProgress.value = value
     })
-    ElMessage.success(`“${file.name}”上传完成`)
+    ElMessage.success(t('files.uploadDone', { name: file.name }))
     query.page = 1
     await load()
   } catch (reason) {
-    notifyError(reason, '文件上传失败')
+    notifyError(reason, t('files.uploadFailed'))
   } finally {
     uploading.value = false
     uploadProgress.value = 0
@@ -95,7 +98,7 @@ async function preview(file: StoredFile) {
     previewExpiresAt.value = result.expiresAt
   } catch (reason) {
     previewOpen.value = false
-    notifyError(reason, '文件预览链接获取失败')
+    notifyError(reason, t('files.previewFailed'))
   } finally {
     previewLoading.value = false
   }
@@ -111,24 +114,24 @@ async function download(file: StoredFile) {
     anchor.click()
     URL.revokeObjectURL(url)
   } catch (reason) {
-    notifyError(reason, '文件下载失败')
+    notifyError(reason, t('files.downloadFailed'))
   }
 }
 
 async function remove(file: StoredFile) {
   const confirmed = await confirmAction(
-    `永久删除文件“${file.originalName}”？此操作不可撤销。`,
-    '删除文件',
-    '删除',
+    t('files.deleteConfirm', { name: file.originalName }),
+    t('files.deleteFile'),
+    t('common.delete'),
   )
   if (!confirmed) return
   try {
     await deleteFile(file.id)
-    ElMessage.success('文件已删除')
+    ElMessage.success(t('files.deleted'))
     if (files.value.length === 1 && query.page > 1) query.page -= 1
     await load()
   } catch (reason) {
-    notifyError(reason, '文件删除失败')
+    notifyError(reason, t('files.deleteFailed'))
   }
 }
 
@@ -141,9 +144,9 @@ onBeforeUnmount(() => {
 <template>
   <section class="admin-page">
     <PageHeader
-      title="文件管理"
+      :title="t('files.title')"
       eyebrow="Files"
-      description="上传、查找、预览与下载存储文件。"
+      :description="t('files.description')"
     >
       <template #actions>
         <el-button
@@ -153,7 +156,7 @@ onBeforeUnmount(() => {
           :loading="uploading"
           @click="pickFile"
         >
-          选择文件
+          {{ t('files.chooseFile') }}
         </el-button>
       </template>
     </PageHeader>
@@ -181,8 +184,8 @@ onBeforeUnmount(() => {
         <Upload />
       </el-icon>
       <span>
-        <strong>{{ uploading ? `正在上传 ${uploadProgress}%` : '拖拽文件到此处，或点击选择' }}</strong>
-        <small>文件大小和类型由服务端策略校验</small>
+        <strong>{{ uploading ? t('files.uploading', { percent: uploadProgress }) : t('files.dropMain') }}</strong>
+        <small>{{ t('files.dropHint') }}</small>
       </span>
       <span
         v-if="uploading"
@@ -198,24 +201,24 @@ onBeforeUnmount(() => {
       <el-input
         v-model="query.keyword"
         clearable
-        placeholder="按文件名查找"
+        :placeholder="t('files.keywordPlaceholder')"
       />
       <el-button
         type="primary"
         native-type="submit"
       >
-        查询
+        {{ t('common.search') }}
       </el-button>
       <el-button
         @click="query.keyword = ''; search()"
       >
-        重置
+        {{ t('common.reset') }}
       </el-button>
-      <el-tooltip content="刷新列表">
+      <el-tooltip :content="t('files.refreshList')">
         <el-button
           :icon="Refresh"
           circle
-          aria-label="刷新列表"
+          :aria-label="t('files.refreshList')"
           @click="load"
         />
       </el-tooltip>
@@ -228,15 +231,15 @@ onBeforeUnmount(() => {
     <StatePanel
       v-else-if="error && !files.length"
       state="error"
-      title="文件列表加载失败"
+      :title="t('files.loadFailed')"
       :description="error"
       @retry="load"
     />
     <StatePanel
       v-else-if="!files.length"
       state="empty"
-      title="未找到文件"
-      description="上传文件或调整查找条件。"
+      :title="t('files.notFound')"
+      :description="t('files.notFoundDesc')"
     />
     <template v-else>
       <div class="table-shell">
@@ -247,7 +250,7 @@ onBeforeUnmount(() => {
         >
           <el-table-column
             prop="originalName"
-            label="文件名"
+            :label="t('files.name')"
             min-width="260"
             fixed="left"
             show-overflow-tooltip
@@ -258,12 +261,12 @@ onBeforeUnmount(() => {
           </el-table-column>
           <el-table-column
             prop="contentType"
-            label="类型"
+            :label="t('files.type')"
             min-width="190"
             show-overflow-tooltip
           />
           <el-table-column
-            label="大小"
+            :label="t('files.size')"
             width="100"
             align="right"
           >
@@ -272,7 +275,7 @@ onBeforeUnmount(() => {
             </template>
           </el-table-column>
           <el-table-column
-            label="状态"
+            :label="t('common.status')"
             width="100"
           >
             <template #default="{ row }">
@@ -286,7 +289,7 @@ onBeforeUnmount(() => {
             </template>
           </el-table-column>
           <el-table-column
-            label="上传时间"
+            :label="t('files.createdAt')"
             min-width="165"
           >
             <template #default="{ row }">
@@ -294,40 +297,40 @@ onBeforeUnmount(() => {
             </template>
           </el-table-column>
           <el-table-column
-            label="操作"
+            :label="t('common.operation')"
             width="138"
             fixed="right"
           >
             <template #default="{ row }">
               <div class="table-actions">
-                <el-tooltip content="预览文件">
+                <el-tooltip :content="t('files.previewFile')">
                   <el-button
                     v-permission="'file:preview'"
                     :icon="View"
                     circle
                     text
-                    aria-label="预览文件"
+                    :aria-label="t('files.previewFile')"
                     @click="preview(row)"
                   />
                 </el-tooltip>
-                <el-tooltip content="下载文件">
+                <el-tooltip :content="t('files.downloadFile')">
                   <el-button
                     v-permission="'file:download'"
                     :icon="Download"
                     circle
                     text
-                    aria-label="下载文件"
+                    :aria-label="t('files.downloadFile')"
                     @click="download(row)"
                   />
                 </el-tooltip>
-                <el-tooltip content="删除文件">
+                <el-tooltip :content="t('files.deleteFile')">
                   <el-button
                     v-permission="'file:delete'"
                     :icon="Delete"
                     circle
                     text
                     type="danger"
-                    aria-label="删除文件"
+                    :aria-label="t('files.deleteFile')"
                     @click="remove(row)"
                   />
                 </el-tooltip>
@@ -350,7 +353,7 @@ onBeforeUnmount(() => {
 
     <el-dialog
       v-model="previewOpen"
-      :title="previewFile?.originalName ?? '文件预览'"
+      :title="previewFile?.originalName ?? t('files.previewTitle')"
       width="min(920px, 92vw)"
       top="5vh"
       destroy-on-close
@@ -367,15 +370,15 @@ onBeforeUnmount(() => {
         <iframe
           v-else-if="previewUrl"
           :src="previewUrl"
-          title="文件预览"
+          :title="t('files.previewTitle')"
         />
       </div>
       <template #footer>
         <span class="preview-expiry">
-          链接有效期至 {{ formatDateTime(previewExpiresAt) }}
+          {{ t('files.expiry', { time: formatDateTime(previewExpiresAt) }) }}
         </span>
         <el-button @click="previewOpen = false">
-          关闭
+          {{ t('common.close') }}
         </el-button>
         <el-button
           v-if="previewFile"
@@ -384,7 +387,7 @@ onBeforeUnmount(() => {
           :icon="Download"
           @click="download(previewFile)"
         >
-          下载
+          {{ t('common.download') }}
         </el-button>
       </template>
     </el-dialog>

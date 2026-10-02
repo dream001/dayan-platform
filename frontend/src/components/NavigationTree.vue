@@ -1,8 +1,32 @@
 <script setup lang="ts">
-import { ArrowRight, Grid } from '@element-plus/icons-vue'
+import {
+  ArrowRight,
+  Clock,
+  Collection,
+  DataAnalysis,
+  FolderOpened,
+  Lock,
+  Menu as MenuIcon,
+  OfficeBuilding,
+  Setting,
+  User,
+} from '@element-plus/icons-vue'
 import { ElIcon } from 'element-plus'
 import 'element-plus/theme-chalk/el-icon.css'
+import type { Component } from 'vue'
+import { translateMenu } from '@/i18n'
 import type { NavigationItem } from '@/types/auth'
+
+const iconComponents: Record<string, Component> = {
+  dashboard: DataAnalysis,
+  settings: Setting,
+  users: User,
+  shield: Lock,
+  menu: MenuIcon,
+  organization: OfficeBuilding,
+  folder: FolderOpened,
+  history: Clock,
+}
 
 withDefaults(defineProps<{
   items: NavigationItem[]
@@ -14,6 +38,10 @@ withDefaults(defineProps<{
 defineEmits<{
   navigate: []
 }>()
+
+function resolveIcon(item: NavigationItem): Component {
+  return iconComponents[item.icon?.toLowerCase() ?? ''] ?? Collection
+}
 </script>
 
 <template>
@@ -31,11 +59,11 @@ defineEmits<{
       >
         <el-icon
           class="navigation-link__icon"
-          :size="17"
+          :size="18"
         >
-          <Grid />
+          <component :is="resolveIcon(item)" />
         </el-icon>
-        <span>{{ item.label }}</span>
+        <span>{{ translateMenu(item.code, item.label) }}</span>
         <el-icon
           class="navigation-link__arrow"
           :size="12"
@@ -48,7 +76,7 @@ defineEmits<{
         class="navigation-group"
         :style="{ paddingLeft: `${10 + depth * 13}px` }"
       >
-        {{ item.label }}
+        {{ translateMenu(item.code, item.label) }}
       </p>
       <NavigationTree
         v-if="item.children.length"
@@ -106,6 +134,13 @@ defineEmits<{
 
 .navigation-link__icon {
   flex: 0 0 auto;
+  color: #8294a1;
+  transition: color 140ms ease;
+}
+
+.navigation-link:hover .navigation-link__icon,
+.navigation-link.router-link-active .navigation-link__icon {
+  color: var(--color-accent-soft);
 }
 
 .navigation-link__arrow {

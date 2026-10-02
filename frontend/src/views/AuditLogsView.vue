@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Refresh, View } from '@element-plus/icons-vue'
 import { onMounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -7,6 +8,8 @@ import { getAuditLog, getAuditLogs } from '@/services/admin'
 import { getErrorMessage, notifyError } from '@/services/feedback'
 import type { OperationLogDetail, OperationLogSummary } from '@/types/admin'
 import { formatDateTime } from '@/utils/format'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const error = ref('')
@@ -44,7 +47,7 @@ async function load() {
     logs.value = page.items
     total.value = page.total
   } catch (reason) {
-    error.value = getErrorMessage(reason, '操作日志加载失败')
+    error.value = getErrorMessage(reason, t('audit.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -71,7 +74,7 @@ async function showDetail(log: OperationLogSummary) {
     detail.value = await getAuditLog(log.id)
   } catch (reason) {
     detailOpen.value = false
-    notifyError(reason, '日志详情加载失败')
+    notifyError(reason, t('audit.detailLoadFailed'))
   } finally {
     detailLoading.value = false
   }
@@ -83,16 +86,16 @@ onMounted(load)
 <template>
   <section class="admin-page">
     <PageHeader
-      title="操作日志"
+      :title="t('audit.title')"
       eyebrow="Audit"
-      description="按操作者、模块、结果和时间范围追踪管理操作。"
+      :description="t('audit.description')"
     >
       <template #actions>
-        <el-tooltip content="刷新日志">
+        <el-tooltip :content="t('audit.refresh')">
           <el-button
             :icon="Refresh"
             circle
-            aria-label="刷新日志"
+            :aria-label="t('audit.refresh')"
             :loading="loading"
             @click="load"
           />
@@ -107,43 +110,43 @@ onMounted(load)
       <el-input
         v-model="query.user"
         clearable
-        placeholder="操作者"
+        :placeholder="t('audit.operatorPlaceholder')"
       />
       <el-input
         v-model="query.module"
         clearable
-        placeholder="模块"
+        :placeholder="t('audit.modulePlaceholder')"
       />
       <el-select
         v-model="query.result"
         clearable
-        placeholder="全部结果"
+        :placeholder="t('audit.allResults')"
       >
         <el-option
-          label="成功"
+          :label="t('audit.success')"
           value="SUCCESS"
         />
         <el-option
-          label="失败"
+          :label="t('audit.failure')"
           value="FAILURE"
         />
       </el-select>
       <el-date-picker
         v-model="dateRange"
         type="datetimerange"
-        range-separator="至"
-        start-placeholder="开始时间"
-        end-placeholder="结束时间"
+        :range-separator="t('audit.rangeSeparator')"
+        :start-placeholder="t('audit.startPlaceholder')"
+        :end-placeholder="t('audit.endPlaceholder')"
         :clearable="true"
       />
       <el-button
         type="primary"
         native-type="submit"
       >
-        查询
+        {{ t('common.search') }}
       </el-button>
       <el-button @click="resetFilters">
-        重置
+        {{ t('common.reset') }}
       </el-button>
     </form>
 
@@ -154,15 +157,15 @@ onMounted(load)
     <StatePanel
       v-else-if="error && !logs.length"
       state="error"
-      title="操作日志加载失败"
+      :title="t('audit.loadFailed')"
       :description="error"
       @retry="load"
     />
     <StatePanel
       v-else-if="!logs.length"
       state="empty"
-      title="未找到操作日志"
-      description="调整筛选条件后重新查询。"
+      :title="t('audit.notFound')"
+      :description="t('audit.notFoundDesc')"
     />
     <template v-else>
       <div class="table-shell">
@@ -172,7 +175,7 @@ onMounted(load)
           row-key="id"
         >
           <el-table-column
-            label="时间"
+            :label="t('audit.time')"
             min-width="165"
             fixed="left"
           >
@@ -182,25 +185,25 @@ onMounted(load)
           </el-table-column>
           <el-table-column
             prop="operatorName"
-            label="操作者"
+            :label="t('audit.operator')"
             min-width="130"
           >
             <template #default="{ row }">
-              {{ row.operatorName || '系统' }}
+              {{ row.operatorName || t('audit.system') }}
             </template>
           </el-table-column>
           <el-table-column
             prop="module"
-            label="模块"
+            :label="t('audit.module')"
             min-width="110"
           />
           <el-table-column
             prop="action"
-            label="动作"
+            :label="t('audit.action')"
             min-width="145"
           />
           <el-table-column
-            label="目标"
+            :label="t('audit.target')"
             min-width="180"
             show-overflow-tooltip
           >
@@ -213,7 +216,7 @@ onMounted(load)
             </template>
           </el-table-column>
           <el-table-column
-            label="结果"
+            :label="t('audit.result')"
             width="90"
           >
             <template #default="{ row }">
@@ -222,12 +225,12 @@ onMounted(load)
                 :type="row.result === 'SUCCESS' ? 'success' : 'danger'"
                 effect="plain"
               >
-                {{ row.result === 'SUCCESS' ? '成功' : '失败' }}
+                {{ row.result === 'SUCCESS' ? t('audit.success') : t('audit.failure') }}
               </el-tag>
             </template>
           </el-table-column>
           <el-table-column
-            label="耗时"
+            :label="t('audit.duration')"
             width="90"
             align="right"
           >
@@ -237,7 +240,7 @@ onMounted(load)
           </el-table-column>
           <el-table-column
             prop="requestId"
-            label="请求标识"
+            :label="t('audit.requestId')"
             min-width="210"
             show-overflow-tooltip
           >
@@ -246,18 +249,18 @@ onMounted(load)
             </template>
           </el-table-column>
           <el-table-column
-            label="操作"
+            :label="t('common.operation')"
             width="72"
             fixed="right"
           >
             <template #default="{ row }">
-              <el-tooltip content="查看详情">
+              <el-tooltip :content="t('audit.viewDetail')">
                 <el-button
                   v-permission="'audit:log:detail'"
                   :icon="View"
                   circle
                   text
-                  aria-label="查看日志详情"
+                  :aria-label="t('audit.viewDetailAria')"
                   @click="showDetail(row)"
                 />
               </el-tooltip>
@@ -279,7 +282,7 @@ onMounted(load)
 
     <el-drawer
       v-model="detailOpen"
-      title="操作详情"
+      :title="t('audit.drawerTitle')"
       size="520px"
     >
       <el-skeleton
@@ -296,34 +299,34 @@ onMounted(load)
             :type="detail.result === 'SUCCESS' ? 'success' : 'danger'"
             effect="plain"
           >
-            {{ detail.result === 'SUCCESS' ? '操作成功' : '操作失败' }}
+            {{ detail.result === 'SUCCESS' ? t('audit.operationSuccess') : t('audit.operationFailure') }}
           </el-tag>
           <span>{{ formatDateTime(detail.occurredAt) }}</span>
         </div>
         <dl>
-          <dt>操作者</dt>
-          <dd>{{ detail.operatorName || '系统' }}{{ detail.operatorId ? `（${detail.operatorId}）` : '' }}</dd>
-          <dt>模块 / 动作</dt>
+          <dt>{{ t('audit.operator') }}</dt>
+          <dd>{{ detail.operatorName || t('audit.system') }}{{ detail.operatorId ? `（${detail.operatorId}）` : '' }}</dd>
+          <dt>{{ t('audit.moduleAction') }}</dt>
           <dd>{{ detail.module }} / {{ detail.action }}</dd>
-          <dt>目标</dt>
+          <dt>{{ t('audit.target') }}</dt>
           <dd>{{ detail.targetType || '—' }}{{ detail.targetId ? ` #${detail.targetId}` : '' }}</dd>
-          <dt>请求标识</dt>
+          <dt>{{ t('audit.requestId') }}</dt>
           <dd class="mono">
             {{ detail.requestId }}
           </dd>
-          <dt>IP 地址</dt>
+          <dt>{{ t('audit.ip') }}</dt>
           <dd>{{ detail.ipAddress || '—' }}</dd>
-          <dt>耗时</dt>
+          <dt>{{ t('audit.duration') }}</dt>
           <dd>{{ detail.durationMs == null ? '—' : `${detail.durationMs} ms` }}</dd>
-          <dt>User-Agent</dt>
+          <dt>{{ t('audit.userAgent') }}</dt>
           <dd class="break-text">
             {{ detail.userAgent || '—' }}
           </dd>
-          <dt>错误摘要</dt>
+          <dt>{{ t('audit.errorSummary') }}</dt>
           <dd>{{ detail.errorSummary || '—' }}</dd>
         </dl>
         <section v-if="detail.details">
-          <h3>附加信息</h3>
+          <h3>{{ t('audit.additional') }}</h3>
           <pre>{{ detail.details }}</pre>
         </section>
       </div>

@@ -2,6 +2,7 @@
 import { Edit, Key, Plus, Refresh, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '@/components/PageHeader.vue'
 import StatePanel from '@/components/StatePanel.vue'
 import {
@@ -19,6 +20,7 @@ import { useAuthStore } from '@/stores/auth'
 import type { DepartmentNode, RoleSummary, UserCreatePayload, UserSummary } from '@/types/admin'
 import { formatDateTime } from '@/utils/format'
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
@@ -76,7 +78,7 @@ async function loadUsers() {
     users.value = page.items
     total.value = page.total
   } catch (reason) {
-    error.value = getErrorMessage(reason, '用户列表加载失败')
+    error.value = getErrorMessage(reason, t('users.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -146,7 +148,7 @@ function openEdit(user: UserSummary) {
 
 async function saveUser() {
   if (!form.displayName.trim() || (drawerMode.value === 'create' && (!form.username.trim() || form.password.length < 12))) {
-    ElMessage.warning('请完整填写必填项，新用户密码至少 12 个字符')
+    ElMessage.warning(t('users.validationRequired'))
     return
   }
   saving.value = true
@@ -159,7 +161,7 @@ async function saveUser() {
         email: form.email.trim(),
         phone: form.phone.trim(),
       })
-      ElMessage.success('用户已新增')
+      ElMessage.success(t('users.created'))
     } else if (editingId.value) {
       await updateUser(editingId.value, {
         departmentId: form.departmentId,
@@ -167,30 +169,34 @@ async function saveUser() {
         email: form.email.trim(),
         phone: form.phone.trim(),
       })
-      ElMessage.success('用户资料已更新')
+      ElMessage.success(t('users.updated'))
     }
     drawerOpen.value = false
     await loadUsers()
   } catch (reason) {
-    notifyError(reason, '用户保存失败')
+    notifyError(reason, t('users.saveFailed'))
   } finally {
     saving.value = false
   }
 }
 
 async function toggleStatus(user: UserSummary, enabled: boolean) {
-  const action = enabled ? '启用' : '停用'
-  const confirmed = await confirmAction(`${action}用户“${user.displayName}”？`, `${action}用户`, action)
+  const action = enabled ? t('users.enable') : t('users.disable')
+  const confirmed = await confirmAction(
+    t('users.toggleConfirm', { action, name: user.displayName }),
+    t('users.toggleTitle', { action }),
+    action,
+  )
   if (!confirmed) {
     user.enabled = !enabled
     return
   }
   try {
     await changeUserStatus(user.id, enabled)
-    ElMessage.success(`用户已${action}`)
+    ElMessage.success(t('users.toggled', { action }))
   } catch (reason) {
     user.enabled = !enabled
-    notifyError(reason, `${action}用户失败`)
+    notifyError(reason, t('users.toggleFailed', { action }))
   }
 }
 
@@ -205,11 +211,11 @@ async function saveRoles() {
   saving.value = true
   try {
     await assignUserRoles(roleUser.value.id, selectedRoleIds.value)
-    ElMessage.success('角色分配已保存')
+    ElMessage.success(t('users.rolesSaved'))
     roleDialogOpen.value = false
     await loadUsers()
   } catch (reason) {
-    notifyError(reason, '角色分配失败')
+    notifyError(reason, t('users.roleAssignFailed'))
   } finally {
     saving.value = false
   }
@@ -223,16 +229,16 @@ function openPasswordDialog(user: UserSummary) {
 
 async function savePassword() {
   if (!passwordUser.value || newPassword.value.length < 12) {
-    ElMessage.warning('新密码至少 12 个字符')
+    ElMessage.warning(t('users.passwordTooShort'))
     return
   }
   saving.value = true
   try {
     await resetUserPassword(passwordUser.value.id, newPassword.value)
-    ElMessage.success('密码已重置')
+    ElMessage.success(t('users.passwordReset'))
     passwordDialogOpen.value = false
   } catch (reason) {
-    notifyError(reason, '密码重置失败')
+    notifyError(reason, t('users.passwordResetFailed'))
   } finally {
     saving.value = false
   }
@@ -246,9 +252,9 @@ onMounted(() => {
 <template>
   <section class="admin-page">
     <PageHeader
-      title="用户管理"
-      eyebrow="System / Users"
-      description="查询账户，维护资料、状态和角色。"
+      :title="t('users.title')"
+      :eyebrow="t('users.eyebrow')"
+      :description="t('users.description')"
     >
       <template #actions>
         <el-button
@@ -257,7 +263,7 @@ onMounted(() => {
           :icon="Plus"
           @click="openCreate"
         >
-          新增用户
+          {{ t('users.createUser') }}
         </el-button>
       </template>
     </PageHeader>
@@ -269,7 +275,7 @@ onMounted(() => {
       <el-input
         v-model="query.keyword"
         clearable
-        placeholder="用户名、姓名或邮箱"
+        :placeholder="t('users.keywordPlaceholder')"
       />
       <el-tree-select
         v-if="canLoadDepartments"
@@ -278,19 +284,19 @@ onMounted(() => {
         :props="departmentProps"
         check-strictly
         clearable
-        placeholder="全部部门"
+        :placeholder="t('users.allDepartments')"
       />
       <el-select
         v-model="query.enabled"
         clearable
-        placeholder="全部状态"
+        :placeholder="t('users.allStatus')"
       >
         <el-option
-          label="已启用"
+          :label="t('users.enabled')"
           :value="true"
         />
         <el-option
-          label="已停用"
+          :label="t('users.disabled')"
           :value="false"
         />
       </el-select>
@@ -298,16 +304,16 @@ onMounted(() => {
         type="primary"
         native-type="submit"
       >
-        查询
+        {{ t('users.search') }}
       </el-button>
       <el-button @click="resetFilters">
-        重置
+        {{ t('users.reset') }}
       </el-button>
-      <el-tooltip content="刷新列表">
+      <el-tooltip :content="t('users.refreshList')">
         <el-button
           :icon="Refresh"
           circle
-          aria-label="刷新列表"
+          :aria-label="t('users.refreshList')"
           @click="loadUsers"
         />
       </el-tooltip>
@@ -320,15 +326,15 @@ onMounted(() => {
     <StatePanel
       v-else-if="error && !users.length"
       state="error"
-      title="用户列表加载失败"
+      :title="t('users.loadFailed')"
       :description="error"
       @retry="loadUsers"
     />
     <StatePanel
       v-else-if="!users.length"
       state="empty"
-      title="未找到用户"
-      description="调整筛选条件，或新增一个用户。"
+      :title="t('users.notFound')"
+      :description="t('users.notFoundDesc')"
     />
     <template v-else>
       <div class="table-shell">
@@ -338,7 +344,7 @@ onMounted(() => {
           row-key="id"
         >
           <el-table-column
-            label="用户"
+            :label="t('users.user')"
             min-width="190"
             fixed="left"
           >
@@ -351,7 +357,7 @@ onMounted(() => {
           </el-table-column>
           <el-table-column
             prop="departmentName"
-            label="部门"
+            :label="t('users.department')"
             min-width="130"
           >
             <template #default="{ row }">
@@ -359,7 +365,7 @@ onMounted(() => {
             </template>
           </el-table-column>
           <el-table-column
-            label="角色"
+            :label="t('users.roles')"
             min-width="180"
           >
             <template #default="{ row }">
@@ -378,7 +384,7 @@ onMounted(() => {
           </el-table-column>
           <el-table-column
             prop="email"
-            label="邮箱"
+            :label="t('users.email')"
             min-width="190"
           >
             <template #default="{ row }">
@@ -386,7 +392,7 @@ onMounted(() => {
             </template>
           </el-table-column>
           <el-table-column
-            label="最近登录"
+            :label="t('users.lastLogin')"
             min-width="165"
           >
             <template #default="{ row }">
@@ -394,14 +400,14 @@ onMounted(() => {
             </template>
           </el-table-column>
           <el-table-column
-            label="状态"
+            :label="t('users.status')"
             width="88"
           >
             <template #default="{ row }">
               <el-switch
                 v-model="row.enabled"
                 v-permission="'system:user:change-status'"
-                aria-label="切换用户状态"
+                :aria-label="t('users.toggleStatus')"
                 @change="(value: boolean) => toggleStatus(row, value)"
               />
               <el-tag
@@ -410,44 +416,44 @@ onMounted(() => {
                 :type="row.enabled ? 'success' : 'info'"
                 effect="plain"
               >
-                {{ row.enabled ? '启用' : '停用' }}
+                {{ row.enabled ? t('users.enable') : t('users.disable') }}
               </el-tag>
             </template>
           </el-table-column>
           <el-table-column
-            label="操作"
+            :label="t('users.operation')"
             width="142"
             fixed="right"
           >
             <template #default="{ row }">
               <div class="table-actions">
-                <el-tooltip content="编辑用户">
+                <el-tooltip :content="t('users.editUser')">
                   <el-button
                     v-permission="'system:user:update'"
                     :icon="Edit"
                     circle
                     text
-                    aria-label="编辑用户"
+                    :aria-label="t('users.editUser')"
                     @click="openEdit(row)"
                   />
                 </el-tooltip>
-                <el-tooltip content="分配角色">
+                <el-tooltip :content="t('users.assignRole')">
                   <el-button
                     v-permission="'system:user:assign-role'"
                     :icon="UserFilled"
                     circle
                     text
-                    aria-label="分配角色"
+                    :aria-label="t('users.assignRole')"
                     @click="openRoleDialog(row)"
                   />
                 </el-tooltip>
-                <el-tooltip content="重置密码">
+                <el-tooltip :content="t('users.resetPassword')">
                   <el-button
                     v-permission="'system:user:reset-password'"
                     :icon="Key"
                     circle
                     text
-                    aria-label="重置密码"
+                    :aria-label="t('users.resetPassword')"
                     @click="openPasswordDialog(row)"
                   />
                 </el-tooltip>
@@ -470,7 +476,7 @@ onMounted(() => {
 
     <el-drawer
       v-model="drawerOpen"
-      :title="drawerMode === 'create' ? '新增用户' : '编辑用户'"
+      :title="drawerMode === 'create' ? t('users.drawerCreate') : t('users.drawerEdit')"
       size="440px"
       destroy-on-close
     >
@@ -481,18 +487,18 @@ onMounted(() => {
       >
         <el-form-item
           v-if="drawerMode === 'create'"
-          label="用户名"
+          :label="t('users.username')"
           required
         >
           <el-input
             v-model="form.username"
             maxlength="64"
-            placeholder="字母、数字、点、横线或下划线"
+            :placeholder="t('users.usernamePattern')"
           />
         </el-form-item>
         <el-form-item
           v-if="drawerMode === 'create'"
-          label="初始密码"
+          :label="t('users.initialPassword')"
           required
         >
           <el-input
@@ -502,11 +508,11 @@ onMounted(() => {
             minlength="12"
             maxlength="72"
             autocomplete="new-password"
-            placeholder="至少 12 个字符"
+            :placeholder="t('users.minPassword')"
           />
         </el-form-item>
         <el-form-item
-          label="显示名称"
+          :label="t('users.displayName')"
           required
         >
           <el-input
@@ -516,7 +522,7 @@ onMounted(() => {
         </el-form-item>
         <el-form-item
           v-if="canLoadDepartments"
-          label="所属部门"
+          :label="t('users.departmentField')"
         >
           <el-tree-select
             v-model="form.departmentId"
@@ -527,14 +533,14 @@ onMounted(() => {
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="邮箱">
+        <el-form-item :label="t('users.email')">
           <el-input
             v-model="form.email"
             type="email"
             maxlength="254"
           />
         </el-form-item>
-        <el-form-item label="电话">
+        <el-form-item :label="t('users.phone')">
           <el-input
             v-model="form.phone"
             maxlength="32"
@@ -542,7 +548,7 @@ onMounted(() => {
         </el-form-item>
         <el-form-item
           v-if="drawerMode === 'create' && canLoadRoles"
-          label="初始角色"
+          :label="t('users.initialRoles')"
         >
           <el-select
             v-model="form.roleIds"
@@ -560,21 +566,21 @@ onMounted(() => {
         </el-form-item>
         <el-form-item v-if="drawerMode === 'create'">
           <el-checkbox v-model="form.enabled">
-            创建后立即启用
+            {{ t('users.enableOnCreate') }}
           </el-checkbox>
         </el-form-item>
       </el-form>
       <template #footer>
         <div class="drawer-footer">
           <el-button @click="drawerOpen = false">
-            取消
+            {{ t('users.cancel') }}
           </el-button>
           <el-button
             type="primary"
             :loading="saving"
             @click="saveUser"
           >
-            保存
+            {{ t('users.save') }}
           </el-button>
         </div>
       </template>
@@ -582,11 +588,11 @@ onMounted(() => {
 
     <el-dialog
       v-model="roleDialogOpen"
-      title="分配角色"
+      :title="t('users.assignTitle')"
       width="440px"
     >
       <p class="dialog-hint">
-        为 {{ roleUser?.displayName }} 选择角色，保存后权限将在重新认证后生效。
+        {{ t('users.assignHint', { name: roleUser?.displayName }) }}
       </p>
       <el-checkbox-group
         v-if="roles.length"
@@ -604,30 +610,30 @@ onMounted(() => {
       </el-checkbox-group>
       <el-empty
         v-else
-        description="无可分配角色或缺少角色查看权限"
+        :description="t('users.noRoles')"
         :image-size="64"
       />
       <template #footer>
         <el-button @click="roleDialogOpen = false">
-          取消
+          {{ t('users.cancel') }}
         </el-button>
         <el-button
           type="primary"
           :loading="saving"
           @click="saveRoles"
         >
-          保存分配
+          {{ t('users.saveAssignment') }}
         </el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="passwordDialogOpen"
-      title="重置密码"
+      :title="t('users.passwordTitle')"
       width="420px"
     >
       <p class="dialog-hint">
-        为 {{ passwordUser?.displayName }} 设置新密码。
+        {{ t('users.passwordHint', { name: passwordUser?.displayName }) }}
       </p>
       <el-input
         v-model="newPassword"
@@ -636,18 +642,18 @@ onMounted(() => {
         minlength="12"
         maxlength="72"
         autocomplete="new-password"
-        placeholder="至少 12 个字符"
+        :placeholder="t('users.minPassword')"
       />
       <template #footer>
         <el-button @click="passwordDialogOpen = false">
-          取消
+          {{ t('users.cancel') }}
         </el-button>
         <el-button
           type="primary"
           :loading="saving"
           @click="savePassword"
         >
-          确认重置
+          {{ t('users.confirmReset') }}
         </el-button>
       </template>
     </el-dialog>

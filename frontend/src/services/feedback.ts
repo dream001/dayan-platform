@@ -1,8 +1,11 @@
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { i18n } from '@/i18n'
 import type { ApiResponse } from '@/types/api'
 
-export function getErrorMessage(error: unknown, fallback = '操作未完成，请稍后重试') {
+const t = i18n.global.t
+
+export function getErrorMessage(error: unknown, fallback: string = t('common.operationIncomplete')) {
   if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
     return error.response?.data?.message || error.message || fallback
   }
@@ -20,13 +23,13 @@ export function notifyError(error: unknown, fallback?: string) {
 
 export async function confirmAction(
   message: string,
-  title = '确认操作',
-  confirmButtonText = '确认',
+  title: string = t('common.confirm'),
+  confirmButtonText: string = t('common.confirm'),
 ) {
   try {
     await ElMessageBox.confirm(message, title, {
       confirmButtonText,
-      cancelButtonText: '取消',
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
       autofocus: false,
       closeOnClickModal: false,

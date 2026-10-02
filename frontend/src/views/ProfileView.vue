@@ -2,11 +2,13 @@
 import { computed, reactive, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '@/components/PageHeader.vue'
 import { changePassword, updateProfile } from '@/services/admin'
 import { notifyError } from '@/services/feedback'
 import { useAuthStore } from '@/stores/auth'
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const router = useRouter()
 const profileSaving = ref(false)
@@ -32,9 +34,9 @@ async function saveProfile() {
       phone: profileForm.phone.trim(),
     })
     await auth.fetchProfile()
-    ElMessage.success('个人资料已更新')
+    ElMessage.success(t('profile.updated'))
   } catch (error) {
-    notifyError(error, '个人资料更新失败')
+    notifyError(error, t('profile.updateFailed'))
   } finally {
     profileSaving.value = false
   }
@@ -42,11 +44,11 @@ async function saveProfile() {
 
 async function savePassword() {
   if (passwordForm.newPassword.length < 12) {
-    ElMessage.warning('新密码至少 12 个字符')
+    ElMessage.warning(t('profile.passwordTooShort'))
     return
   }
   if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-    ElMessage.warning('两次输入的新密码不一致')
+    ElMessage.warning(t('profile.passwordMismatch'))
     return
   }
   passwordSaving.value = true
@@ -55,14 +57,14 @@ async function savePassword() {
       currentPassword: passwordForm.currentPassword,
       newPassword: passwordForm.newPassword,
     })
-    ElMessage.success('密码已修改，请重新登录')
+    ElMessage.success(t('profile.passwordChanged'))
     try {
       await auth.signOut()
     } finally {
       await router.replace({ name: 'login' })
     }
   } catch (error) {
-    notifyError(error, '密码修改失败')
+    notifyError(error, t('profile.passwordChangeFailed'))
   } finally {
     passwordSaving.value = false
   }
@@ -72,9 +74,9 @@ async function savePassword() {
 <template>
   <section class="admin-page profile-page">
     <PageHeader
-      title="个人中心"
-      eyebrow="Account"
-      description="维护当前账户资料与登录密码。"
+      :title="t('profile.title')"
+      :eyebrow="t('profile.eyebrow')"
+      :description="t('profile.description')"
     />
 
     <div class="profile-layout">
@@ -83,25 +85,25 @@ async function savePassword() {
         <strong>{{ user?.displayName }}</strong>
         <span>@{{ user?.username }}</span>
         <dl>
-          <dt>用户编号</dt>
+          <dt>{{ t('profile.userId') }}</dt>
           <dd>{{ user?.id }}</dd>
-          <dt>部门编号</dt>
-          <dd>{{ user?.departmentId ?? '未分配' }}</dd>
+          <dt>{{ t('profile.departmentId') }}</dt>
+          <dd>{{ user?.departmentId ?? t('profile.unassigned') }}</dd>
         </dl>
       </aside>
 
       <div class="profile-forms">
         <section>
           <header>
-            <h2>基本资料</h2>
-            <p>邮箱和电话可留空。</p>
+            <h2>{{ t('profile.basicInfo') }}</h2>
+            <p>{{ t('profile.emailOptional') }}</p>
           </header>
           <el-form
             label-position="top"
             @submit.prevent="saveProfile"
           >
             <el-form-item
-              label="显示名称"
+              :label="t('profile.displayName')"
               required
             >
               <el-input
@@ -110,14 +112,14 @@ async function savePassword() {
               />
             </el-form-item>
             <div class="field-pair">
-              <el-form-item label="邮箱">
+              <el-form-item :label="t('profile.email')">
                 <el-input
                   v-model="profileForm.email"
                   type="email"
                   maxlength="254"
                 />
               </el-form-item>
-              <el-form-item label="电话">
+              <el-form-item :label="t('profile.phone')">
                 <el-input
                   v-model="profileForm.phone"
                   maxlength="32"
@@ -129,22 +131,22 @@ async function savePassword() {
               native-type="submit"
               :loading="profileSaving"
             >
-              保存资料
+              {{ t('profile.saveProfile') }}
             </el-button>
           </el-form>
         </section>
 
         <section>
           <header>
-            <h2>修改密码</h2>
-            <p>新密码需为 12–72 个字符，修改后需要重新登录。</p>
+            <h2>{{ t('profile.changePasswordTitle') }}</h2>
+            <p>{{ t('profile.passwordHint') }}</p>
           </header>
           <el-form
             label-position="top"
             @submit.prevent="savePassword"
           >
             <el-form-item
-              label="当前密码"
+              :label="t('profile.currentPassword')"
               required
             >
               <el-input
@@ -156,7 +158,7 @@ async function savePassword() {
             </el-form-item>
             <div class="field-pair">
               <el-form-item
-                label="新密码"
+                :label="t('profile.newPassword')"
                 required
               >
                 <el-input
@@ -169,7 +171,7 @@ async function savePassword() {
                 />
               </el-form-item>
               <el-form-item
-                label="确认新密码"
+                :label="t('profile.confirmNewPassword')"
                 required
               >
                 <el-input
@@ -185,7 +187,7 @@ async function savePassword() {
               native-type="submit"
               :loading="passwordSaving"
             >
-              修改密码
+              {{ t('profile.submitPassword') }}
             </el-button>
           </el-form>
         </section>

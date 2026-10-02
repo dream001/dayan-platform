@@ -34,6 +34,7 @@ export interface BackendMenu {
 export interface NavigationItem {
   id: string
   label: string
+  code?: string
   path?: string
   icon?: string
   permission?: string

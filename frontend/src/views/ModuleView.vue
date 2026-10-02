@@ -1,26 +1,33 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import StatePanel from '@/components/StatePanel.vue'
+import { translateMenu } from '@/i18n'
 
-defineProps<{
+const { t } = useI18n()
+const props = defineProps<{
   title: string
+  code?: string
 }>()
+
+const resolvedTitle = computed(() => translateMenu(props.code, props.title))
 </script>
 
 <template>
   <section
     class="module-view"
-    :aria-labelledby="`module-${title}`"
+    :aria-labelledby="`module-${resolvedTitle}`"
   >
     <header>
-      <p>功能模块</p>
-      <h1 :id="`module-${title}`">
-        {{ title }}
+      <p>{{ t('module.eyebrow') }}</p>
+      <h1 :id="`module-${resolvedTitle}`">
+        {{ resolvedTitle }}
       </h1>
     </header>
     <StatePanel
       state="empty"
-      title="功能入口已就绪"
-      description="菜单与访问权限来自当前账户；业务页面将在对应管理功能接入后显示。"
+      :title="t('module.readyTitle')"
+      :description="t('module.readyDesc')"
     />
   </section>
 </template>

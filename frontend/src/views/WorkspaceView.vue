@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '@/components/PageHeader.vue'
 import StatePanel from '@/components/StatePanel.vue'
 import { getDashboardStatistics } from '@/services/admin'
@@ -8,6 +9,7 @@ import { getErrorMessage } from '@/services/feedback'
 import type { DashboardStatistics } from '@/types/admin'
 import { formatBytes, formatDateTime } from '@/utils/format'
 
+const { t } = useI18n()
 const loading = ref(true)
 const error = ref('')
 const statistics = ref<DashboardStatistics | null>(null)
@@ -16,9 +18,21 @@ const metrics = computed(() => {
   const value = statistics.value
   if (!value) return []
   return [
-    { label: '用户总数', value: value.totalUsers.toLocaleString(), note: `${value.enabledUsers} 个已启用` },
-    { label: '文件总数', value: value.totalFiles.toLocaleString(), note: formatBytes(value.totalFileSizeBytes) },
-    { label: '近期操作', value: value.recentOperationCount.toLocaleString(), note: '审计记录' },
+    {
+      label: t('workspace.totalUsers'),
+      value: value.totalUsers.toLocaleString(),
+      note: t('workspace.enabledNote', { count: value.enabledUsers }),
+    },
+    {
+      label: t('workspace.totalFiles'),
+      value: value.totalFiles.toLocaleString(),
+      note: formatBytes(value.totalFileSizeBytes),
+    },
+    {
+      label: t('workspace.recentOperations'),
+      value: value.recentOperationCount.toLocaleString(),
+      note: t('workspace.auditRecords'),
+    },
   ]
 })
 
@@ -28,7 +42,7 @@ async function load() {
   try {
     statistics.value = await getDashboardStatistics()
   } catch (reason) {
-    error.value = getErrorMessage(reason, '工作台数据加载失败')
+    error.value = getErrorMessage(reason, t('workspace.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -40,16 +54,16 @@ onMounted(load)
 <template>
   <section class="admin-page workspace-view">
     <PageHeader
-      title="工作台"
-      eyebrow="Workspace"
-      description="用户、文件与操作数据均来自当前服务。"
+      :title="t('workspace.title')"
+      :eyebrow="t('workspace.eyebrow')"
+      :description="t('workspace.description')"
     >
       <template #actions>
-        <el-tooltip content="刷新统计">
+        <el-tooltip :content="t('workspace.refresh')">
           <el-button
             :icon="Refresh"
             circle
-            aria-label="刷新统计"
+            :aria-label="t('workspace.refresh')"
             :loading="loading"
             @click="load"
           />
@@ -64,7 +78,7 @@ onMounted(load)
     <StatePanel
       v-else-if="error"
       state="error"
-      title="工作台加载失败"
+      :title="t('workspace.loadFailed')"
       :description="error"
       @retry="load"
     />
@@ -80,20 +94,20 @@ onMounted(load)
           <small>{{ metric.note }}</small>
         </div>
         <div class="metric metric--timestamp">
-          <span>统计时间</span>
+          <span>{{ t('workspace.generatedAt') }}</span>
           <strong>{{ formatDateTime(statistics.generatedAt) }}</strong>
-          <small>服务端生成</small>
+          <small>{{ t('workspace.serverGenerated') }}</small>
         </div>
       </div>
 
       <section class="operations">
         <header>
           <div>
-            <p>最近活动</p>
-            <h2>操作记录</h2>
+            <p>{{ t('workspace.recentActivity') }}</p>
+            <h2>{{ t('workspace.operationRecords') }}</h2>
           </div>
           <RouterLink to="/audit/logs">
-            查看全部
+            {{ t('workspace.viewAll') }}
           </RouterLink>
         </header>
         <div
@@ -103,25 +117,25 @@ onMounted(load)
           <el-table :data="statistics.recentOperations">
             <el-table-column
               prop="operatorName"
-              label="操作者"
+              :label="t('workspace.operator')"
               min-width="120"
             >
               <template #default="{ row }">
-                {{ row.operatorName || '系统' }}
+                {{ row.operatorName || t('workspace.system') }}
               </template>
             </el-table-column>
             <el-table-column
               prop="module"
-              label="模块"
+              :label="t('workspace.module')"
               min-width="105"
             />
             <el-table-column
               prop="action"
-              label="动作"
+              :label="t('workspace.action')"
               min-width="130"
             />
             <el-table-column
-              label="结果"
+              :label="t('workspace.result')"
               width="92"
             >
               <template #default="{ row }">
@@ -130,12 +144,12 @@ onMounted(load)
                   :type="row.result === 'SUCCESS' ? 'success' : 'danger'"
                   effect="plain"
                 >
-                  {{ row.result === 'SUCCESS' ? '成功' : '失败' }}
+                  {{ row.result === 'SUCCESS' ? t('workspace.success') : t('workspace.failure') }}
                 </el-tag>
               </template>
             </el-table-column>
             <el-table-column
-              label="时间"
+              :label="t('workspace.time')"
               min-width="165"
             >
               <template #default="{ row }">
@@ -147,8 +161,8 @@ onMounted(load)
         <StatePanel
           v-else
           state="empty"
-          title="暂无近期操作"
-          description="产生登录或管理操作后，记录会显示在这里。"
+          :title="t('workspace.noRecent')"
+          :description="t('workspace.noRecentDesc')"
         />
       </section>
     </template>

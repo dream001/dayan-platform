@@ -4,6 +4,9 @@ import { ElIcon, ElSkeleton, ElSkeletonItem } from 'element-plus'
 import 'element-plus/theme-chalk/el-icon.css'
 import 'element-plus/theme-chalk/el-skeleton.css'
 import 'element-plus/theme-chalk/el-skeleton-item.css'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 withDefaults(defineProps<{
   state: 'loading' | 'empty' | 'error'
@@ -29,7 +32,7 @@ defineEmits<{
     <el-skeleton
       v-if="state === 'loading'"
       animated
-      aria-label="正在加载"
+      :aria-label="t('state.loading')"
     >
       <template #template>
         <el-skeleton-item
@@ -65,7 +68,7 @@ defineEmits<{
       >
         <WarningFilled />
       </el-icon>
-      <h2>{{ title || (state === 'empty' ? '暂无数据' : '加载失败') }}</h2>
+      <h2>{{ title || (state === 'empty' ? t('state.empty') : t('state.error')) }}</h2>
       <p v-if="description">
         {{ description }}
       </p>
@@ -74,7 +77,7 @@ defineEmits<{
         type="button"
         @click="$emit('retry')"
       >
-        重新加载
+        {{ t('state.retry') }}
       </button>
       <slot />
     </template>

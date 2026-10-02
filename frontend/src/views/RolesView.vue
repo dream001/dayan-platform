@@ -2,6 +2,7 @@
 import { Delete, Edit, Key, Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElTree } from 'element-plus'
 import { onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '@/components/PageHeader.vue'
 import StatePanel from '@/components/StatePanel.vue'
 import {
@@ -17,6 +18,7 @@ import { confirmAction, getErrorMessage, notifyError } from '@/services/feedback
 import type { MenuNode, RolePayload, RoleSummary } from '@/types/admin'
 import { formatDateTime } from '@/utils/format'
 
+const { t } = useI18n()
 const loading = ref(false)
 const error = ref('')
 const roles = ref<RoleSummary[]>([])
@@ -51,7 +53,7 @@ async function load() {
     roles.value = page.items
     total.value = page.total
   } catch (reason) {
-    error.value = getErrorMessage(reason, '角色列表加载失败')
+    error.value = getErrorMessage(reason, t('roles.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -89,7 +91,7 @@ function openEdit(role: RoleSummary) {
 
 async function saveRole() {
   if (!form.name.trim() || !/^[A-Za-z][A-Za-z0-9_]*$/.test(form.code)) {
-    ElMessage.warning('请填写名称，角色编码需以字母开头且仅含字母、数字和下划线')
+    ElMessage.warning(t('roles.validation'))
     return
   }
   saving.value = true
@@ -102,15 +104,15 @@ async function saveRole() {
     }
     if (mode.value === 'create') {
       await createRole(payload)
-      ElMessage.success('角色已新增')
+      ElMessage.success(t('roles.created'))
     } else if (editingId.value) {
       await updateRole(editingId.value, payload)
-      ElMessage.success('角色已更新')
+      ElMessage.success(t('roles.updated'))
     }
     drawerOpen.value = false
     await load()
   } catch (reason) {
-    notifyError(reason, '角色保存失败')
+    notifyError(reason, t('roles.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -118,17 +120,17 @@ async function saveRole() {
 
 async function removeRole(role: RoleSummary) {
   const confirmed = await confirmAction(
-    `删除角色“${role.name}”？有关联用户或内置角色将无法删除。`,
-    '删除角色',
-    '删除',
+    t('roles.deleteConfirm', { name: role.name }),
+    t('roles.deleteTitle'),
+    t('roles.delete'),
   )
   if (!confirmed) return
   try {
     await deleteRole(role.id)
-    ElMessage.success('角色已删除')
+    ElMessage.success(t('roles.deleted'))
     await load()
   } catch (reason) {
-    notifyError(reason, '角色删除失败')
+    notifyError(reason, t('roles.deleteFailed'))
   }
 }
 
@@ -145,7 +147,7 @@ async function openPermissions(role: RoleSummary) {
     checkedPermissionIds.value = detail.permissionIds
   } catch (reason) {
     permissionDialogOpen.value = false
-    notifyError(reason, '权限数据加载失败')
+    notifyError(reason, t('roles.permissionLoadFailed'))
   } finally {
     saving.value = false
   }
@@ -157,10 +159,10 @@ async function savePermissions() {
   try {
     const ids = (permissionTree.value?.getCheckedKeys(false) ?? []) as number[]
     await grantRolePermissions(permissionRole.value.id, ids)
-    ElMessage.success('角色权限已保存')
+    ElMessage.success(t('roles.granted'))
     permissionDialogOpen.value = false
   } catch (reason) {
-    notifyError(reason, '角色授权失败')
+    notifyError(reason, t('roles.grantFailed'))
   } finally {
     saving.value = false
   }
@@ -172,9 +174,9 @@ onMounted(load)
 <template>
   <section class="admin-page">
     <PageHeader
-      title="角色管理"
-      eyebrow="System / Roles"
-      description="维护角色及其菜单、按钮权限。"
+      :title="t('roles.title')"
+      :eyebrow="t('roles.eyebrow')"
+      :description="t('roles.description')"
     >
       <template #actions>
         <el-button
@@ -183,7 +185,7 @@ onMounted(load)
           :icon="Plus"
           @click="openCreate"
         >
-          新增角色
+          {{ t('roles.createRole') }}
         </el-button>
       </template>
     </PageHeader>
@@ -195,19 +197,19 @@ onMounted(load)
       <el-input
         v-model="query.keyword"
         clearable
-        placeholder="角色名称或编码"
+        :placeholder="t('roles.keywordPlaceholder')"
       />
       <el-select
         v-model="query.enabled"
         clearable
-        placeholder="全部状态"
+        :placeholder="t('roles.allStatus')"
       >
         <el-option
-          label="已启用"
+          :label="t('roles.enabled')"
           :value="true"
         />
         <el-option
-          label="已停用"
+          :label="t('roles.disabled')"
           :value="false"
         />
       </el-select>
@@ -215,16 +217,16 @@ onMounted(load)
         type="primary"
         native-type="submit"
       >
-        查询
+        {{ t('roles.search') }}
       </el-button>
       <el-button @click="resetFilters">
-        重置
+        {{ t('roles.reset') }}
       </el-button>
-      <el-tooltip content="刷新列表">
+      <el-tooltip :content="t('roles.refreshList')">
         <el-button
           :icon="Refresh"
           circle
-          aria-label="刷新列表"
+          :aria-label="t('roles.refreshList')"
           @click="load"
         />
       </el-tooltip>
@@ -237,15 +239,15 @@ onMounted(load)
     <StatePanel
       v-else-if="error && !roles.length"
       state="error"
-      title="角色列表加载失败"
+      :title="t('roles.loadFailed')"
       :description="error"
       @retry="load"
     />
     <StatePanel
       v-else-if="!roles.length"
       state="empty"
-      title="未找到角色"
-      description="调整筛选条件，或新增一个角色。"
+      :title="t('roles.notFound')"
+      :description="t('roles.notFoundDesc')"
     />
     <template v-else>
       <div class="table-shell">
@@ -256,7 +258,7 @@ onMounted(load)
         >
           <el-table-column
             prop="name"
-            label="角色名称"
+            :label="t('roles.name')"
             min-width="160"
             fixed="left"
           >
@@ -268,13 +270,13 @@ onMounted(load)
                 effect="plain"
                 class="built-in-tag"
               >
-                内置
+                {{ t('roles.builtIn') }}
               </el-tag>
             </template>
           </el-table-column>
           <el-table-column
             prop="code"
-            label="角色编码"
+            :label="t('roles.code')"
             min-width="170"
           >
             <template #default="{ row }">
@@ -283,7 +285,7 @@ onMounted(load)
           </el-table-column>
           <el-table-column
             prop="description"
-            label="说明"
+            :label="t('roles.descriptionCol')"
             min-width="240"
             show-overflow-tooltip
           >
@@ -293,12 +295,12 @@ onMounted(load)
           </el-table-column>
           <el-table-column
             prop="userCount"
-            label="用户数"
+            :label="t('roles.userCount')"
             width="90"
             align="right"
           />
           <el-table-column
-            label="状态"
+            :label="t('roles.status')"
             width="88"
           >
             <template #default="{ row }">
@@ -307,12 +309,12 @@ onMounted(load)
                 :type="row.enabled ? 'success' : 'info'"
                 effect="plain"
               >
-                {{ row.enabled ? '启用' : '停用' }}
+                {{ row.enabled ? t('roles.enable') : t('roles.disable') }}
               </el-tag>
             </template>
           </el-table-column>
           <el-table-column
-            label="创建时间"
+            :label="t('roles.createdAt')"
             min-width="165"
           >
             <template #default="{ row }">
@@ -320,33 +322,36 @@ onMounted(load)
             </template>
           </el-table-column>
           <el-table-column
-            label="操作"
+            :label="t('roles.operation')"
             width="136"
             fixed="right"
           >
             <template #default="{ row }">
               <div class="table-actions">
-                <el-tooltip content="编辑角色">
+                <el-tooltip :content="t('roles.editRole')">
                   <el-button
                     v-permission="'system:role:update'"
                     :icon="Edit"
                     circle
                     text
-                    aria-label="编辑角色"
+                    :aria-label="t('roles.editRole')"
                     @click="openEdit(row)"
                   />
                 </el-tooltip>
-                <el-tooltip content="菜单和按钮授权">
-                  <el-button
-                    v-permission="'system:role:grant'"
-                    :icon="Key"
-                    circle
-                    text
-                    aria-label="角色授权"
-                    @click="openPermissions(row)"
-                  />
+                <el-tooltip :content="row.code === 'SUPER_ADMIN' ? t('roles.superAdminHint') : t('roles.grant')">
+                  <span>
+                    <el-button
+                      v-permission="'system:role:grant'"
+                      :icon="Key"
+                      circle
+                      text
+                      :aria-label="t('roles.grantAria')"
+                      :disabled="row.code === 'SUPER_ADMIN'"
+                      @click="openPermissions(row)"
+                    />
+                  </span>
                 </el-tooltip>
-                <el-tooltip :content="row.builtIn ? '内置角色不可删除' : '删除角色'">
+                <el-tooltip :content="row.builtIn ? t('roles.builtInNoDelete') : t('roles.deleteTitle')">
                   <span>
                     <el-button
                       v-permission="'system:role:delete'"
@@ -354,7 +359,7 @@ onMounted(load)
                       circle
                       text
                       type="danger"
-                      aria-label="删除角色"
+                      :aria-label="t('roles.deleteTitle')"
                       :disabled="row.builtIn"
                       @click="removeRole(row)"
                     />
@@ -379,7 +384,7 @@ onMounted(load)
 
     <el-drawer
       v-model="drawerOpen"
-      :title="mode === 'create' ? '新增角色' : '编辑角色'"
+      :title="mode === 'create' ? t('roles.drawerCreate') : t('roles.drawerEdit')"
       size="420px"
     >
       <el-form
@@ -388,7 +393,7 @@ onMounted(load)
         @submit.prevent="saveRole"
       >
         <el-form-item
-          label="角色名称"
+          :label="t('roles.name')"
           required
         >
           <el-input
@@ -397,16 +402,16 @@ onMounted(load)
           />
         </el-form-item>
         <el-form-item
-          label="角色编码"
+          :label="t('roles.code')"
           required
         >
           <el-input
             v-model="form.code"
             maxlength="64"
-            placeholder="例如 DATA_OPERATOR"
+            :placeholder="t('roles.codePlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="说明">
+        <el-form-item :label="t('roles.descriptionCol')">
           <el-input
             v-model="form.description"
             type="textarea"
@@ -417,21 +422,21 @@ onMounted(load)
         </el-form-item>
         <el-form-item>
           <el-checkbox v-model="form.enabled">
-            启用角色
+            {{ t('roles.enableRole') }}
           </el-checkbox>
         </el-form-item>
       </el-form>
       <template #footer>
         <div class="drawer-footer">
           <el-button @click="drawerOpen = false">
-            取消
+            {{ t('roles.cancel') }}
           </el-button>
           <el-button
             type="primary"
             :loading="saving"
             @click="saveRole"
           >
-            保存
+            {{ t('roles.save') }}
           </el-button>
         </div>
       </template>
@@ -439,11 +444,11 @@ onMounted(load)
 
     <el-dialog
       v-model="permissionDialogOpen"
-      :title="`角色授权 · ${permissionRole?.name ?? ''}`"
+      :title="t('roles.grantTitle', { name: permissionRole?.name ?? '' })"
       width="560px"
     >
       <p class="permission-hint">
-        勾选角色可访问的菜单与按钮权限。树节点按后端权限数据实时生成。
+        {{ t('roles.grantHint') }}
       </p>
       <el-skeleton
         v-if="saving && !menus.length"
@@ -465,20 +470,20 @@ onMounted(load)
         <template #default="{ data }">
           <span class="permission-node">
             <span>{{ data.name }}</span>
-            <small>{{ data.type === 'BUTTON' ? '按钮' : '菜单' }} · {{ data.code || '无权限码' }}</small>
+            <small>{{ data.type === 'BUTTON' ? t('roles.button') : t('roles.menu') }} · {{ data.code || t('roles.noCode') }}</small>
           </span>
         </template>
       </el-tree>
       <template #footer>
         <el-button @click="permissionDialogOpen = false">
-          取消
+          {{ t('roles.cancel') }}
         </el-button>
         <el-button
           type="primary"
           :loading="saving"
           @click="savePermissions"
         >
-          保存授权
+          {{ t('roles.saveGrant') }}
         </el-button>
       </template>
     </el-dialog>

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { flattenNavigation } from './menu'
+import { i18n } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const routes: RouteRecordRaw[] = [
@@ -7,21 +8,21 @@ const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'login',
     component: () => import('@/views/LoginView.vue'),
-    meta: { public: true, title: '登录' },
+    meta: { public: true, titleKey: 'login.title' },
   },
   {
     path: '/status/401',
     name: 'unauthorized',
     component: () => import('@/views/StatusView.vue'),
     props: { status: '401' },
-    meta: { public: true, title: '登录已失效' },
+    meta: { public: true, titleKey: 'status.401.title' },
   },
   {
     path: '/status/403',
     name: 'forbidden',
     component: () => import('@/views/StatusView.vue'),
     props: { status: '403' },
-    meta: { title: '无权访问' },
+    meta: { titleKey: 'status.403.title' },
   },
   {
     path: '/',
@@ -32,19 +33,23 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'workspace',
         component: () => import('@/views/WorkspaceView.vue'),
-        meta: { title: '工作台', eyebrow: '总览' },
+        meta: { titleKey: 'workspace.title', eyebrowKey: 'shell.eyebrows.overview' },
       },
       {
         path: 'dashboard',
         name: 'dashboard',
         component: () => import('@/views/WorkspaceView.vue'),
-        meta: { title: '工作台', eyebrow: '总览', permission: 'dashboard:view' },
+        meta: {
+          titleKey: 'workspace.title',
+          eyebrowKey: 'shell.eyebrows.overview',
+          permission: 'dashboard:view',
+        },
       },
       {
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/ProfileView.vue'),
-        meta: { title: '个人中心', eyebrow: '账户' },
+        meta: { titleKey: 'profile.title', eyebrowKey: 'shell.eyebrows.account' },
       },
       {
         path: 'system',
@@ -54,37 +59,61 @@ const routes: RouteRecordRaw[] = [
         path: 'system/users',
         name: 'users',
         component: () => import('@/views/UsersView.vue'),
-        meta: { title: '用户管理', eyebrow: '系统管理', permission: 'system:user:view' },
+        meta: {
+          titleKey: 'users.title',
+          eyebrowKey: 'shell.eyebrows.system',
+          permission: 'system:user:view',
+        },
       },
       {
         path: 'system/roles',
         name: 'roles',
         component: () => import('@/views/RolesView.vue'),
-        meta: { title: '角色管理', eyebrow: '系统管理', permission: 'system:role:view' },
+        meta: {
+          titleKey: 'roles.title',
+          eyebrowKey: 'shell.eyebrows.system',
+          permission: 'system:role:view',
+        },
       },
       {
         path: 'system/permissions',
         name: 'permissions',
         component: () => import('@/views/MenusView.vue'),
-        meta: { title: '菜单权限', eyebrow: '系统管理', permission: 'system:permission:view' },
+        meta: {
+          titleKey: 'menus.title',
+          eyebrowKey: 'shell.eyebrows.system',
+          permission: 'system:permission:view',
+        },
       },
       {
         path: 'system/departments',
         name: 'departments',
         component: () => import('@/views/DepartmentsView.vue'),
-        meta: { title: '部门管理', eyebrow: '系统管理', permission: 'system:department:view' },
+        meta: {
+          titleKey: 'departments.title',
+          eyebrowKey: 'shell.eyebrows.system',
+          permission: 'system:department:view',
+        },
       },
       {
         path: 'files',
         name: 'files',
         component: () => import('@/views/FilesView.vue'),
-        meta: { title: '文件管理', eyebrow: '内容管理', permission: 'file:view' },
+        meta: {
+          titleKey: 'files.title',
+          eyebrowKey: 'shell.eyebrows.content',
+          permission: 'file:view',
+        },
       },
       {
         path: 'audit/logs',
         name: 'audit-logs',
         component: () => import('@/views/AuditLogsView.vue'),
-        meta: { title: '操作日志', eyebrow: '安全审计', permission: 'audit:log:view' },
+        meta: {
+          titleKey: 'audit.title',
+          eyebrowKey: 'shell.eyebrows.security',
+          permission: 'audit:log:view',
+        },
       },
     ],
   },
@@ -93,7 +122,7 @@ const routes: RouteRecordRaw[] = [
     name: 'not-found',
     component: () => import('@/views/StatusView.vue'),
     props: { status: '404' },
-    meta: { title: '页面不存在' },
+    meta: { titleKey: 'status.404.title' },
   },
 ]
 
@@ -115,10 +144,11 @@ function registerDynamicRoutes() {
       path: item.path,
       name,
       component: () => import('@/views/ModuleView.vue'),
-      props: { title: item.label },
+      props: { title: item.label, code: item.code },
       meta: {
-        title: item.label,
-        eyebrow: '功能模块',
+        titleKey: item.code ? `menu.${item.code}` : undefined,
+        title: item.code ? undefined : item.label,
+        eyebrowKey: 'shell.eyebrows.module',
         permission: item.permission,
       },
     })
@@ -156,8 +186,10 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  const title = typeof to.meta.title === 'string' ? to.meta.title : '管理平台'
-  document.title = `${title} · 大雁管理平台`
+  const title = typeof to.meta.titleKey === 'string'
+    ? i18n.global.t(to.meta.titleKey)
+    : i18n.global.t('app.platform')
+  document.title = `${title} · ${i18n.global.t('app.name')}`
 })
 
 export default router

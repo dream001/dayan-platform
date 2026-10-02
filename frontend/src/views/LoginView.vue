@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import { getErrorMessage } from '@/services/feedback'
 import { useAuthStore } from '@/stores/auth'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -33,7 +36,7 @@ async function handleSubmit() {
     })
     await router.replace(safeRedirect())
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, '用户名或密码错误')
+    errorMessage.value = getErrorMessage(error, t('login.invalidCredentials'))
   } finally {
     submitting.value = false
   }
@@ -44,7 +47,7 @@ async function handleSubmit() {
   <main class="login">
     <section
       class="login__identity"
-      aria-label="大雁管理平台"
+      :aria-label="t('app.name')"
     >
       <div class="login__coordinates">
         <span>DAYAN / ADMIN</span>
@@ -58,12 +61,12 @@ async function handleSubmit() {
           <span />
           <span />
         </div>
-        <p>大雁管理平台</p>
-        <h1>统一、清晰地管理每一次操作。</h1>
+        <p>{{ t('app.name') }}</p>
+        <h1>{{ t('login.tagline') }}</h1>
       </div>
       <p class="login__environment">
         <span aria-hidden="true" />
-        安全访问通道
+        {{ t('login.secureChannel') }}
       </p>
     </section>
 
@@ -71,20 +74,21 @@ async function handleSubmit() {
       class="login__form-area"
       aria-labelledby="login-title"
     >
+      <LanguageSwitcher class="login__lang" />
       <form
         class="login-form"
         @submit.prevent="handleSubmit"
       >
         <header>
-          <p>账户认证</p>
+          <p>{{ t('login.accountAuth') }}</p>
           <h2 id="login-title">
-            登录
+            {{ t('login.title') }}
           </h2>
-          <span>使用已分配的管理账户继续。</span>
+          <span>{{ t('login.subtitle') }}</span>
         </header>
 
         <div class="field">
-          <label for="username">用户名</label>
+          <label for="username">{{ t('login.username') }}</label>
           <input
             id="username"
             v-model="form.username"
@@ -95,12 +99,12 @@ async function handleSubmit() {
             spellcheck="false"
             required
             autofocus
-            placeholder="请输入用户名"
+            :placeholder="t('login.usernamePlaceholder')"
           >
         </div>
 
         <div class="field">
-          <label for="password">密码</label>
+          <label for="password">{{ t('login.password') }}</label>
           <input
             id="password"
             v-model="form.password"
@@ -108,7 +112,7 @@ async function handleSubmit() {
             type="password"
             autocomplete="current-password"
             required
-            placeholder="请输入密码"
+            :placeholder="t('login.passwordPlaceholder')"
           >
         </div>
 
@@ -130,12 +134,12 @@ async function handleSubmit() {
             class="login-form__spinner"
             aria-hidden="true"
           />
-          {{ submitting ? '正在验证' : '登录平台' }}
+          {{ submitting ? t('login.submitting') : t('login.submit') }}
         </button>
       </form>
 
       <p class="login__footnote">
-        访问行为将写入安全审计日志
+        {{ t('login.footnote') }}
       </p>
     </section>
   </main>
@@ -249,12 +253,19 @@ async function handleSubmit() {
 }
 
 .login__form-area {
+  position: relative;
   display: flex;
   min-height: 100svh;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 48px clamp(28px, 8vw, 120px) 30px;
+}
+
+.login__lang {
+  position: absolute;
+  top: 18px;
+  right: clamp(18px, 4vw, 42px);
 }
 
 .login-form {

@@ -10,23 +10,26 @@ export function normalizeMenus(
   menus: BackendMenu[] = [],
   permissions: ReadonlySet<string> = new Set(),
 ): NavigationItem[] {
-  return menus.flatMap((menu) => {
-    if (menu.type !== 'MENU' || !menu.enabled || !menu.visible) return []
+  return [...menus]
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.id - right.id)
+    .flatMap((menu) => {
+      if (menu.type !== 'MENU' || !menu.enabled || !menu.visible) return []
 
-    const children = normalizeMenus(menu.children, permissions)
-    const path = safePath(menu.path ?? undefined)
-    const permission = menu.code && permissions.has(menu.code) ? menu.code : undefined
-    if (!menu.name || (!path && children.length === 0)) return []
+      const children = normalizeMenus(menu.children, permissions)
+      const path = safePath(menu.path ?? undefined)
+      const permission = menu.code && permissions.has(menu.code) ? menu.code : undefined
+      if (!menu.name || (!path && children.length === 0)) return []
 
-    return [{
-      id: String(menu.id),
-      label: menu.name,
-      path,
-      icon: menu.icon ?? undefined,
-      permission,
-      children,
-    }]
-  })
+      return [{
+        id: String(menu.id),
+        label: menu.name,
+        code: menu.code ?? undefined,
+        path,
+        icon: menu.icon ?? undefined,
+        permission,
+        children,
+      }]
+    })
 }
 
 export function flattenNavigation(items: NavigationItem[]): NavigationItem[] {
