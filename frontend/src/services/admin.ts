@@ -8,6 +8,7 @@ import type {
   MenuNode,
   MenuPayload,
   OperationLogDetail,
+  OperationLogSummary,
   RoleDetail,
   RolePayload,
   RoleSummary,
@@ -159,7 +160,7 @@ export async function deleteFile(id: number) {
 }
 
 export async function getAuditLogs(params: AuditLogQuery) {
-  return data(await http.get<ApiResponse<PageResponse<OperationLogDetail>>>('/audit/logs', { params }))
+  return data(await http.get<ApiResponse<PageResponse<OperationLogSummary>>>('/audit/logs', { params }))
 }
 
 export async function getAuditLog(id: number) {

@@ -139,7 +139,7 @@ async function openPermissions(role: RoleSummary) {
   try {
     const [detail, tree] = await Promise.all([
       getRole(role.id),
-      menus.length ? Promise.resolve(menus.value) : getMenus(),
+      menus.value.length ? Promise.resolve(menus.value) : getMenus(),
     ])
     menus.value = tree
     checkedPermissionIds.value = detail.permissionIds

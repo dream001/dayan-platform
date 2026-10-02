@@ -399,8 +399,8 @@ onMounted(() => {
           >
             <template #default="{ row }">
               <el-switch
-                v-permission="'system:user:change-status'"
                 v-model="row.enabled"
+                v-permission="'system:user:change-status'"
                 aria-label="切换用户状态"
                 @change="(value: boolean) => toggleStatus(row, value)"
               />
