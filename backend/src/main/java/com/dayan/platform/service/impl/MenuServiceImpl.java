@@ -3,6 +3,7 @@ package com.dayan.platform.service.impl;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.dayan.platform.common.api.ErrorCode;
 import com.dayan.platform.common.exception.BusinessException;
+import com.dayan.platform.dto.RbacDtos.MenuOrderRequest;
 import com.dayan.platform.dto.RbacDtos.MenuRequest;
 import com.dayan.platform.model.MenuPermission;
 import com.dayan.platform.repository.mapper.MenuPermissionMapper;
@@ -13,11 +14,14 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,6 +69,9 @@ public class MenuServiceImpl implements MenuService {
         apply(permission, request);
         try {
             menuPermissionMapper.insert(permission);
+            if (rolePermissionMapper.grantToAdministrator(permission.getId()) != 1) {
+                throw new IllegalStateException("Enabled administrator role is missing");
+            }
         } catch (DataIntegrityViolationException exception) {
             throw conflict("Permission code already exists");
         }
@@ -91,12 +98,40 @@ public class MenuServiceImpl implements MenuService {
 
     @Override
     @Transactional
+    public List<MenuNode> reorder(MenuOrderRequest request) {
+        List<MenuPermission> siblings = menuPermissionMapper.selectSiblingsForUpdate(request.parentId());
+        List<Long> requestedIds = request.ids();
+        Set<Long> uniqueIds = new HashSet<>(requestedIds);
+        Set<Long> siblingIds = siblings.stream()
+                .map(MenuPermission::getId)
+                .collect(Collectors.toSet());
+        if (uniqueIds.size() != requestedIds.size() || !uniqueIds.equals(siblingIds)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_ARGUMENT,
+                    "ids must contain every sibling exactly once"
+            );
+        }
+
+        Map<Long, MenuPermission> byId = siblings.stream()
+                .collect(Collectors.toMap(MenuPermission::getId, item -> item));
+        OffsetDateTime updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        for (int index = 0; index < requestedIds.size(); index++) {
+            MenuPermission permission = byId.get(requestedIds.get(index));
+            permission.setSortOrder(index * 10);
+            permission.setUpdatedAt(updatedAt);
+            menuPermissionMapper.updateById(permission);
+        }
+        return tree();
+    }
+
+    @Override
+    @Transactional
     public void delete(long id) {
         requirePermission(id);
         if (menuPermissionMapper.countChildren(id) > 0) {
             throw conflict("Permission still has child nodes");
         }
-        if (rolePermissionMapper.countByPermissionId(id) > 0) {
+        if (rolePermissionMapper.countByPermissionIdExcludingAdministrator(id) > 0) {
             throw conflict("Permission is still granted to roles");
         }
         menuPermissionMapper.deleteById(id);

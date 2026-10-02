@@ -2,6 +2,8 @@ package com.dayan.platform.repository.storage;
 
 import com.dayan.platform.config.MinioProperties;
 import io.minio.BucketExistsArgs;
+import io.minio.ComposeObjectArgs;
+import io.minio.ComposeSource;
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MakeBucketArgs;
@@ -11,6 +13,7 @@ import io.minio.RemoveObjectArgs;
 import io.minio.http.Method;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Repository;
@@ -63,6 +66,28 @@ public class MinioObjectStorage implements ObjectStorage {
             ).etag();
         } catch (Exception exception) {
             throw new ObjectStorageException("Unable to store object", exception);
+        }
+    }
+
+    @Override
+    public String compose(String objectKey, List<String> sourceObjectKeys, String contentType) {
+        try {
+            List<ComposeSource> sources = sourceObjectKeys.stream()
+                    .map(source -> ComposeSource.builder()
+                            .bucket(properties.bucket())
+                            .object(source)
+                            .build())
+                    .toList();
+            return client.composeObject(
+                    ComposeObjectArgs.builder()
+                            .bucket(properties.bucket())
+                            .object(objectKey)
+                            .sources(sources)
+                            .headers(Map.of("Content-Type", contentType))
+                            .build()
+            ).etag();
+        } catch (Exception exception) {
+            throw new ObjectStorageException("Unable to compose object", exception);
         }
     }
 

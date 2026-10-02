@@ -188,6 +188,17 @@ class RbacManagementIntegrationTest extends PostgreSqlIntegrationTestSupport {
                                 """))
                 .andExpect(status().isOk())
                 .andReturn()).path("id").asLong();
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT count(*)
+                FROM sys_role_permission rp
+                JOIN sys_role r ON r.id = rp.role_id
+                WHERE r.code = 'SUPER_ADMIN'
+                  AND rp.permission_id = ?
+                """,
+                Integer.class,
+                menuId
+        )).isOne();
 
         mockMvc.perform(put(SYSTEM + "/roles/" + roleId + "/permissions")
                         .header("Authorization", bearer(adminToken))
@@ -206,6 +217,60 @@ class RbacManagementIntegrationTest extends PostgreSqlIntegrationTestSupport {
         mockMvc.perform(delete(SYSTEM + "/menus/" + menuId)
                         .header("Authorization", bearer(adminToken)))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void preservesAdministratorPermissionsAndReordersEverySiblingAtomically() throws Exception {
+        long administratorRoleId = jdbcTemplate.queryForObject(
+                "SELECT id FROM sys_role WHERE code = 'SUPER_ADMIN'",
+                Long.class
+        );
+        mockMvc.perform(put(SYSTEM + "/roles/" + administratorRoleId + "/permissions")
+                        .header("Authorization", bearer(adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\":[1000]}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Administrator permissions are managed automatically"));
+
+        long parentId = createMenu(null, "Sort parent", "test:sort-parent:view", 90);
+        long firstId = createMenu(parentId, "First child", "test:first-child:view", 10);
+        long secondId = createMenu(parentId, "Second child", "test:second-child:view", 20);
+
+        mockMvc.perform(put(SYSTEM + "/menus/order")
+                        .header("Authorization", bearer(adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "parentId", parentId,
+                                "ids", new long[]{secondId, firstId}
+                        ))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(SYSTEM + "/menus/" + parentId)
+                        .header("Authorization", bearer(adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.children[0].id").value(secondId))
+                .andExpect(jsonPath("$.data.children[1].id").value(firstId));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT sort_order FROM sys_menu_permission WHERE id = ?",
+                Integer.class,
+                secondId
+        )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT sort_order FROM sys_menu_permission WHERE id = ?",
+                Integer.class,
+                firstId
+        )).isEqualTo(10);
+
+        mockMvc.perform(put(SYSTEM + "/menus/order")
+                        .header("Authorization", bearer(adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "parentId", parentId,
+                                "ids", new long[]{firstId}
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON_INVALID_ARGUMENT"));
     }
 
     @Test
@@ -268,6 +333,26 @@ class RbacManagementIntegrationTest extends PostgreSqlIntegrationTestSupport {
                                 """.formatted(name, code)))
                 .andExpect(status().isOk())
                 .andReturn()).path("role").path("id").asLong();
+    }
+
+    private long createMenu(Long parentId, String name, String code, int sortOrder) throws Exception {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("parentId", parentId);
+        request.put("type", "MENU");
+        request.put("name", name);
+        request.put("code", code);
+        request.put("path", "/" + code.replace(':', '-'));
+        request.put("component", "test/index");
+        request.put("icon", "menu");
+        request.put("sortOrder", sortOrder);
+        request.put("visible", true);
+        request.put("enabled", true);
+        return responseData(mockMvc.perform(post(SYSTEM + "/menus")
+                        .header("Authorization", bearer(adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn()).path("id").asLong();
     }
 
     private long insertUser(String username, String password) {

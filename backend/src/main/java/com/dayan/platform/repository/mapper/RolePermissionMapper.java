@@ -33,6 +33,16 @@ public interface RolePermissionMapper {
             @Param("permissionIds") Collection<Long> permissionIds
     );
 
+    @Insert("""
+            INSERT INTO sys_role_permission (role_id, permission_id)
+            SELECT id, #{permissionId}
+            FROM sys_role
+            WHERE code = 'SUPER_ADMIN'
+              AND enabled = TRUE
+            ON CONFLICT DO NOTHING
+            """)
+    int grantToAdministrator(@Param("permissionId") long permissionId);
+
     @Select("""
             SELECT permission_id
             FROM sys_role_permission
@@ -41,6 +51,12 @@ public interface RolePermissionMapper {
             """)
     List<Long> selectPermissionIdsByRoleId(@Param("roleId") long roleId);
 
-    @Select("SELECT count(*) FROM sys_role_permission WHERE permission_id = #{permissionId}")
-    long countByPermissionId(@Param("permissionId") long permissionId);
+    @Select("""
+            SELECT count(*)
+            FROM sys_role_permission rp
+            JOIN sys_role r ON r.id = rp.role_id
+            WHERE rp.permission_id = #{permissionId}
+              AND r.code <> 'SUPER_ADMIN'
+            """)
+    long countByPermissionIdExcludingAdministrator(@Param("permissionId") long permissionId);
 }

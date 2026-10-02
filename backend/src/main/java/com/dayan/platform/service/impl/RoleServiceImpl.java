@@ -28,6 +28,8 @@ import org.springframework.util.StringUtils;
 @Service
 public class RoleServiceImpl implements RoleService {
 
+    private static final String ADMINISTRATOR_ROLE_CODE = "SUPER_ADMIN";
+
     private final RoleMapper roleMapper;
     private final UserRoleMapper userRoleMapper;
     private final RolePermissionMapper rolePermissionMapper;
@@ -137,8 +139,8 @@ public class RoleServiceImpl implements RoleService {
         if (!normalized.isEmpty() && userAccountMapper.countByIds(normalized) != normalized.size()) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "One or more users do not exist");
         }
-        if (Boolean.TRUE.equals(role.getBuiltIn()) && normalized.isEmpty()) {
-            throw conflict("Built-in role must retain at least one user");
+        if (ADMINISTRATOR_ROLE_CODE.equals(role.getCode()) && normalized.isEmpty()) {
+            throw conflict("Administrator role must retain at least one user");
         }
         userRoleMapper.deleteByRoleId(id);
         if (!normalized.isEmpty()) {
@@ -150,6 +152,9 @@ public class RoleServiceImpl implements RoleService {
     @Transactional
     public void grantPermissions(long id, Set<Long> permissionIds) {
         Role role = requireRole(id);
+        if (ADMINISTRATOR_ROLE_CODE.equals(role.getCode())) {
+            throw conflict("Administrator permissions are managed automatically");
+        }
         Set<Long> normalized = normalizedIds(permissionIds);
         if (!normalized.isEmpty() && menuPermissionMapper.countByIds(normalized) != normalized.size()) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "One or more permissions do not exist");

@@ -1,6 +1,7 @@
 package com.dayan.platform.controller;
 
 import com.dayan.platform.audit.Audited;
+import com.dayan.platform.dto.RbacDtos.MenuOrderRequest;
 import com.dayan.platform.dto.RbacDtos.MenuRequest;
 import com.dayan.platform.service.MenuService;
 import com.dayan.platform.vo.RbacViews.MenuNode;
@@ -58,6 +59,13 @@ public class MenuController {
             @Valid @RequestBody MenuRequest request
     ) {
         return menuService.update(id, request);
+    }
+
+    @PutMapping("/order")
+    @PreAuthorize("hasAuthority('system:permission:sort')")
+    @Audited(module = "MENU", action = "REORDER", targetType = "MENU_PERMISSION")
+    public List<MenuNode> reorder(@Valid @RequestBody MenuOrderRequest request) {
+        return menuService.reorder(request);
     }
 
     @DeleteMapping("/{id}")

@@ -266,6 +266,7 @@ onMounted(load)
       v-else
       :departments="departments"
       @create-child="openCreate"
+      @delete="remove"
       @edit="openEdit"
     />
 

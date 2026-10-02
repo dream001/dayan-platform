@@ -2,6 +2,7 @@
 import {
   Aim,
   ArrowRight,
+  ChatLineRound,
   CircleCheck,
   Clock,
   Coin,
@@ -43,6 +44,7 @@ const iconComponents: Record<string, Component> = {
   skill: MagicStick,
   export: Download,
   visual: Monitor,
+  agent: ChatLineRound,
   settings: Setting,
   users: User,
   shield: Lock,
@@ -75,7 +77,7 @@ function containsActiveRoute(item: NavigationItem): boolean {
 }
 
 function isExpanded(item: NavigationItem): boolean {
-  return expandedItems[item.id] ?? true
+  return expandedItems[item.id] ?? false
 }
 
 function toggleItem(item: NavigationItem) {

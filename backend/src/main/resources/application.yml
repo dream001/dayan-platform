@@ -17,8 +17,8 @@ spring:
     default-property-inclusion: non_null
   servlet:
     multipart:
-      max-file-size: ${FILE_MAX_SIZE:20MB}
-      max-request-size: ${FILE_MAX_REQUEST_SIZE:21MB}
+      max-file-size: ${FILE_MAX_SIZE:100MB}
+      max-request-size: ${FILE_MAX_REQUEST_SIZE:101MB}
   threads:
     virtual:
       enabled: ${VIRTUAL_THREADS_ENABLED:true}
@@ -55,7 +55,7 @@ app:
     access-key: ${MINIO_ACCESS_KEY:dayan_minio}
     secret-key: ${MINIO_SECRET_KEY:dayan_minio_password}
     bucket: ${MINIO_BUCKET:dayan-files}
-    max-file-size: ${FILE_MAX_SIZE:20MB}
+    max-file-size: ${FILE_MAX_SIZE:100MB}
     allowed-content-types: ${FILE_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/gif,application/pdf,text/plain,text/csv,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}
     preview-ttl: ${FILE_PREVIEW_TTL:5m}
 

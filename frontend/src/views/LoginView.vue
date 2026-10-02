@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import { getErrorMessage } from '@/services/feedback'
 import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
-const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const form = reactive({ username: '', password: '' })
@@ -18,13 +17,6 @@ const canSubmit = computed(() =>
   form.username.trim().length > 0 && form.password.length > 0 && !submitting.value,
 )
 
-function safeRedirect() {
-  const redirect = route.query.redirect
-  return typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
-    ? redirect
-    : '/'
-}
-
 async function handleSubmit() {
   if (!canSubmit.value) return
   submitting.value = true
@@ -34,7 +26,7 @@ async function handleSubmit() {
       username: form.username.trim(),
       password: form.password,
     })
-    await router.replace(safeRedirect())
+    await router.replace({ name: 'workspace' })
   } catch (error) {
     errorMessage.value = getErrorMessage(error, t('login.invalidCredentials'))
   } finally {

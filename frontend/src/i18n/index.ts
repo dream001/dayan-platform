@@ -3,6 +3,11 @@ import { createI18n } from 'vue-i18n'
 import elEn from 'element-plus/es/locale/lang/en'
 import elJa from 'element-plus/es/locale/lang/ja'
 import elZh from 'element-plus/es/locale/lang/zh-cn'
+import {
+  enUS as annotationEnUS,
+  jaJP as annotationJaJP,
+  zhCN as annotationZhCN,
+} from './locales/annotation-tasks'
 import enUS from './locales/en-US'
 import jaJP from './locales/ja-JP'
 import zhCN from './locales/zh-CN'
@@ -33,9 +38,9 @@ export const i18n = createI18n({
   locale: detectLocale(),
   fallbackLocale: 'zh-CN',
   messages: {
-    'zh-CN': zhCN,
-    'en-US': enUS,
-    'ja-JP': jaJP,
+    'zh-CN': { ...zhCN, annotationTasks: annotationZhCN },
+    'en-US': { ...enUS, annotationTasks: annotationEnUS },
+    'ja-JP': { ...jaJP, annotationTasks: annotationJaJP },
   },
 })
 

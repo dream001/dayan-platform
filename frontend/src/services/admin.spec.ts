@@ -2,10 +2,15 @@ import type { AxiosAdapter, InternalAxiosRequestConfig } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   assignUserRoles,
+  changeCollectionTaskStatus,
+  createDataUploadSession,
   getAuditLogs,
+  getCollectionTasks,
+  getDataUploadOptions,
   getDashboardStatistics,
   grantRolePermissions,
   reorderMenus,
+  uploadDataPart,
   uploadFile,
 } from './admin'
 import { http } from './http'
@@ -94,6 +99,51 @@ describe('management API contracts', () => {
     })).resolves.toEqual(page)
   })
 
+  it('passes collection filters and status transitions to the collection API', async () => {
+    const requests: Array<{ url?: string; method?: string; params?: unknown; body?: unknown }> = []
+    http.defaults.adapter = async (config) => {
+      requests.push({
+        url: config.url,
+        method: config.method,
+        params: config.params,
+        body: config.data ? JSON.parse(String(config.data)) : undefined,
+      })
+      return apiResponse(config, config.method === 'get'
+        ? { page: 1, size: 50, total: 0, totalPages: 0, items: [] }
+        : { summary: { id: 7, status: 'WORKING' } })
+    }
+
+    await getCollectionTasks({
+      page: 1,
+      size: 50,
+      keyword: 'arm',
+      collectorId: 9,
+      status: 'PENDING',
+    })
+    await changeCollectionTaskStatus(7, 'WORKING')
+
+    expect(requests).toEqual([
+      {
+        url: '/collections',
+        method: 'get',
+        params: {
+          page: 1,
+          size: 50,
+          keyword: 'arm',
+          collectorId: 9,
+          status: 'PENDING',
+        },
+        body: undefined,
+      },
+      {
+        url: '/collections/7/status',
+        method: 'patch',
+        params: undefined,
+        body: { status: 'WORKING' },
+      },
+    ])
+  })
+
   it('submits the complete sibling order for menu sorting', async () => {
     http.defaults.adapter = async (config) => {
       expect(config.url).toBe('/system/menus/order')
@@ -134,5 +184,60 @@ describe('management API contracts', () => {
     await expect(uploadFile(new File(['report'], 'report.txt', {
       type: 'text/plain',
     }))).resolves.toEqual(storedFile)
+  })
+
+  it('uses the data upload session and chunk contracts', async () => {
+    const requests: Array<{ url?: string; method?: string; body: unknown }> = []
+    http.defaults.adapter = async (config) => {
+      requests.push({ url: config.url, method: config.method, body: config.data })
+      if (config.url === '/data/uploads/options') {
+        return apiResponse(config, {
+          projects: [],
+          storages: [],
+          multipartThreshold: 104857600,
+          chunkSize: 10485760,
+          videoTimeoutSeconds: 600,
+        })
+      }
+      return apiResponse(config, {
+        id: 'session-1',
+        projectId: 7,
+        dataType: 'MCAP',
+        fileName: 'capture.mcap',
+        totalSize: 10485761,
+        chunkSize: 10485760,
+        totalChunks: 2,
+        uploadedParts: [],
+        status: 'PENDING',
+        existingDataset: null,
+      })
+    }
+
+    await getDataUploadOptions()
+    await createDataUploadSession({
+      projectId: 7,
+      storageKey: 'minio-default',
+      dataType: 'MCAP',
+      fileName: 'capture.mcap',
+      contentType: 'application/octet-stream',
+      totalSize: 10485761,
+      sourceFingerprint: 'fingerprint',
+    })
+    await uploadDataPart(
+      'session-1',
+      0,
+      new Blob(['part']),
+      () => undefined,
+      new AbortController().signal,
+    )
+
+    expect(requests[0]?.url).toBe('/data/uploads/options')
+    expect(requests[1]?.url).toBe('/data/uploads/sessions')
+    expect(JSON.parse(String(requests[1]?.body))).toMatchObject({
+      projectId: 7,
+      dataType: 'MCAP',
+    })
+    expect(requests[2]?.url).toBe('/data/uploads/sessions/session-1/parts/0')
+    expect(requests[2]?.body).toBeInstanceOf(FormData)
   })
 })

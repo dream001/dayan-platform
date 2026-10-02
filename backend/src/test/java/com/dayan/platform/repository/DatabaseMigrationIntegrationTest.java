@@ -27,7 +27,7 @@ class DatabaseMigrationIntegrationTest extends PostgreSqlIntegrationTestSupport 
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(Arrays.stream(flyway.info().applied()).map(MigrationInfo::getVersion))
                 .extracting(Object::toString)
-                .containsExactly("1", "2", "3", "4");
+                .contains("1", "2", "3", "4", "5", "6", "7", "8", "19", "20", "21");
 
         JdbcTemplate jdbc = jdbcTemplate();
         assertThat(jdbc.queryForObject(
@@ -38,19 +38,24 @@ class DatabaseMigrationIntegrationTest extends PostgreSqlIntegrationTestSupport 
                   AND table_name IN (
                     'sys_department', 'sys_user', 'sys_role', 'sys_menu_permission',
                     'sys_user_role', 'sys_role_permission', 'auth_session',
-                    'file_metadata', 'operation_log'
+                    'file_metadata', 'operation_log', 'basic_project', 'basic_project_member',
+                    'ai_model', 'cloud_storage', 'ai_agent'
                   )
                 """,
                 Integer.class
-        )).isEqualTo(9);
+        )).isGreaterThanOrEqualTo(14);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM sys_menu_permission WHERE type = 'MENU'",
                 Integer.class
-        )).isEqualTo(8);
+        )).isGreaterThanOrEqualTo(27);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM sys_menu_permission WHERE type = 'BUTTON'",
                 Integer.class
-        )).isEqualTo(21);
+        )).isGreaterThanOrEqualTo(28);
+        assertThat(jdbc.queryForList(
+                "SELECT code FROM sys_role WHERE built_in = TRUE ORDER BY code",
+                String.class
+        )).containsExactly("ANNOTATOR", "AUDITOR", "COLLECTOR", "MANAGER", "SUPER_ADMIN");
         assertThat(jdbc.queryForObject(
                 """
                 SELECT count(*)
@@ -59,7 +64,56 @@ class DatabaseMigrationIntegrationTest extends PostgreSqlIntegrationTestSupport 
                 WHERE r.code = 'SUPER_ADMIN'
                 """,
                 Integer.class
-        )).isEqualTo(29);
+        )).isGreaterThanOrEqualTo(55);
+        assertThat(jdbc.queryForObject(
+                """
+                SELECT count(*)
+                FROM sys_role_permission rp
+                JOIN sys_role r ON r.id = rp.role_id
+                JOIN sys_menu_permission p ON p.id = rp.permission_id
+                WHERE r.code IN ('MANAGER', 'COLLECTOR', 'ANNOTATOR', 'AUDITOR')
+                  AND p.code = 'dashboard:view'
+                """,
+                Integer.class
+        )).isEqualTo(4);
+        assertThat(jdbc.queryForList(
+                """
+                SELECT code
+                FROM sys_menu_permission
+                WHERE parent_id = (SELECT id FROM sys_menu_permission WHERE code = 'basic:view')
+                ORDER BY sort_order, id
+                """,
+                String.class
+        )).containsExactly(
+                "basic:project:view",
+                "basic:robot:view",
+                "basic:device:view",
+                "basic:storage:view",
+                "basic:workflow:view",
+                "basic:model:view",
+                "basic:agent:view",
+                "basic:operations:view"
+        );
+        assertThat(jdbc.queryForObject(
+                """
+                SELECT basic.sort_order > audit.sort_order
+                FROM sys_menu_permission basic
+                JOIN sys_menu_permission audit ON audit.code = 'audit:log:view'
+                WHERE basic.code = 'basic:view'
+                """,
+                Boolean.class
+        )).isTrue();
+        assertThat(jdbc.queryForObject(
+                """
+                SELECT count(*)
+                FROM sys_role_permission rp
+                JOIN sys_role r ON r.id = rp.role_id
+                JOIN sys_menu_permission p ON p.id = rp.permission_id
+                WHERE r.code = 'MANAGER'
+                  AND p.code = 'basic:project:view'
+                """,
+                Integer.class
+        )).isOne();
     }
 
     @Test

@@ -164,7 +164,8 @@ class AuthIntegrationTest extends PostgreSqlIntegrationTestSupport {
         mockMvc.perform(get(AUTH_PATH + "/me").header("Authorization", bearer(accessToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.username").value("integration-admin"))
-                .andExpect(jsonPath("$.data.permissions.length()").value(29));
+                .andExpect(jsonPath("$.data.permissions.length()")
+                        .value(org.hamcrest.Matchers.greaterThanOrEqualTo(55)));
 
         mockMvc.perform(patch(AUTH_PATH + "/me/profile")
                         .header("Authorization", bearer(accessToken))

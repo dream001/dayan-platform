@@ -164,3 +164,172 @@ export interface AuditLogQuery {
   startTime?: string
   endTime?: string
 }
+
+export type CollectionTaskStatus =
+  | 'PENDING'
+  | 'WORKING'
+  | 'REVIEW_PENDING'
+  | 'REJECTED'
+  | 'APPROVED'
+  | 'SUBMITTED'
+
+export interface CollectionAssignee {
+  id: number
+  username: string
+  displayName: string
+}
+
+export interface CollectionStep {
+  id?: number
+  sequenceNo?: number
+  actionName: string
+  objectName: string
+  targetName: string
+  notes: string
+}
+
+export interface CollectionDataset {
+  id: number
+  name: string
+  sizeBytes: number
+  status: string
+  uploadedAt: string
+}
+
+export interface CollectionTaskSummary {
+  id: number
+  name: string
+  projectId: number
+  projectName: string
+  targetCount: number
+  averageDurationSeconds: number
+  collectedCount: number
+  latestFileName: string | null
+  latestFileAt: string | null
+  assignees: string[]
+  actions: string[]
+  status: CollectionTaskStatus
+  createdBy: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CollectionTaskDetail {
+  summary: CollectionTaskSummary
+  notes: string | null
+  initialScene: string | null
+  remoteOperationEnabled: boolean
+  assignees: CollectionAssignee[]
+  steps: CollectionStep[]
+  datasets: CollectionDataset[]
+  allowedTransitions: CollectionTaskStatus[]
+  canEdit: boolean
+  canDelete: boolean
+  canUnlinkData: boolean
+}
+
+export interface CollectionTaskPayload {
+  name: string
+  projectId: number | null
+  assigneeIds: number[]
+  targetCount: number
+  averageDurationSeconds: number
+  notes: string
+  initialScene: string
+  remoteOperationEnabled: boolean
+  steps: CollectionStep[]
+}
+
+export interface CollectionProjectOption {
+  id: number
+  name: string
+}
+
+export interface CollectionOptions {
+  projects: CollectionProjectOption[]
+  collectors: CollectionAssignee[]
+}
+
+export interface CollectionStatusCounts {
+  total: number
+  statuses: Record<CollectionTaskStatus, number>
+}
+
+export interface CollectionTaskQuery {
+  page: number
+  size: number
+  keyword?: string
+  collectorId?: number
+  status?: CollectionTaskStatus
+}
+
+export type DataUploadType =
+  | 'MCAP'
+  | 'BAG'
+  | 'VIDEO'
+  | 'AUDIO'
+  | 'IMAGE'
+  | 'HDF5'
+  | 'LEROBOT'
+  | 'MEITUAN'
+  | 'LUMOS'
+  | 'ZC0TOUCH'
+  | 'SENSEXPERIENCE'
+  | 'BVH'
+
+export interface DataUploadProjectOption {
+  id: number
+  code: string
+  name: string
+}
+
+export interface DataUploadStorageOption {
+  key: string
+  name: string
+  provider: string
+  bucket: string
+}
+
+export interface DataUploadOptions {
+  projects: DataUploadProjectOption[]
+  storages: DataUploadStorageOption[]
+  multipartThreshold: number
+  chunkSize: number
+  videoTimeoutSeconds: number
+}
+
+export interface UploadedDataset {
+  id: number
+  projectId: number
+  name: string
+  dataType: DataUploadType
+  originalName: string
+  contentType: string
+  sizeBytes: number
+  status: 'READY' | 'PROCESSING' | 'FAILED'
+  createdAt: string
+}
+
+export interface DataUploadSession {
+  id: string | null
+  projectId: number
+  dataType: DataUploadType
+  fileName: string
+  totalSize: number
+  chunkSize: number
+  totalChunks: number
+  uploadedParts: number[]
+  status: string
+  existingDataset: UploadedDataset | null
+}
+
+export interface CreateDataUploadSessionPayload {
+  projectId: number
+  storageKey: string
+  dataType: DataUploadType
+  fileName: string
+  contentType: string
+  totalSize: number
+  sourceFingerprint: string
+  robotType?: string
+}

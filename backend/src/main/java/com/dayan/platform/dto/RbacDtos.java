@@ -2,9 +2,12 @@ package com.dayan.platform.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import java.util.Set;
 
 public final class RbacDtos {
@@ -75,6 +78,12 @@ public final class RbacDtos {
             @NotNull Integer sortOrder,
             @NotNull Boolean visible,
             @NotNull Boolean enabled
+    ) {
+    }
+
+    public record MenuOrderRequest(
+            Long parentId,
+            @NotEmpty @Size(max = 1000) List<@NotNull @Positive Long> ids
     ) {
     }
 }

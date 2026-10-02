@@ -52,6 +52,80 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'profile.title', eyebrowKey: 'shell.eyebrows.account' },
       },
       {
+        path: 'data/manage',
+        name: 'dataset',
+        component: () => import('@/views/DatasetView.vue'),
+        meta: {
+          titleKey: 'dataset.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:manage:view',
+        },
+      },
+      {
+        path: 'data/annotate-tasks',
+        alias: '/tasks',
+        name: 'annotation-tasks',
+        component: () => import('@/views/AnnotationTasksView.vue'),
+        meta: {
+          titleKey: 'annotationTasks.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:annotate:task:view',
+        },
+      },
+      {
+        path: 'data/annotate-tasks/new',
+        alias: '/tasks/new',
+        name: 'annotation-task-create',
+        component: () => import('@/views/AnnotationTaskCreateView.vue'),
+        meta: {
+          titleKey: 'annotationTasks.create',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:annotate:task:manage',
+        },
+      },
+      {
+        path: 'data/annotate-tasks/:id',
+        alias: '/tasks/:id',
+        name: 'annotation-task-detail',
+        component: () => import('@/views/AnnotationTaskDetailView.vue'),
+        meta: {
+          titleKey: 'annotationTasks.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:annotate:task:view',
+        },
+      },
+      {
+        path: 'data/annotate-tasks/:id/:tab',
+        alias: '/tasks/:id/:tab',
+        name: 'annotation-task-detail-tab',
+        component: () => import('@/views/AnnotationTaskDetailView.vue'),
+        meta: {
+          titleKey: 'annotationTasks.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:annotate:task:view',
+        },
+      },
+      {
+        path: 'data/collect-tasks',
+        name: 'collection-tasks',
+        component: () => import('@/views/CollectionTasksView.vue'),
+        meta: {
+          titleKey: 'collections.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:collect:task:view',
+        },
+      },
+      {
+        path: 'data/collect-tasks/:id',
+        name: 'collection-task-detail',
+        component: () => import('@/views/CollectionTasksView.vue'),
+        meta: {
+          titleKey: 'collections.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:collect:task:view',
+        },
+      },
+      {
         path: 'system',
         redirect: '/system/users',
       },
@@ -113,6 +187,26 @@ const routes: RouteRecordRaw[] = [
           titleKey: 'audit.title',
           eyebrowKey: 'shell.eyebrows.security',
           permission: 'audit:log:view',
+        },
+      },
+      {
+        path: 'basic/projects',
+        name: 'projects',
+        component: () => import('@/views/ProjectsView.vue'),
+        meta: {
+          titleKey: 'projects.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:project:view',
+        },
+      },
+      {
+        path: 'basic/storage',
+        name: 'storage-management',
+        component: () => import('@/views/StorageManagementView.vue'),
+        meta: {
+          titleKey: 'storages.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:storage:view',
         },
       },
     ],

@@ -2,12 +2,15 @@ package com.dayan.platform.repository.storage;
 
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.List;
 
 public interface ObjectStorage {
 
     void ensureBucket();
 
     String put(String objectKey, InputStream inputStream, long size, String contentType);
+
+    String compose(String objectKey, List<String> sourceObjectKeys, String contentType);
 
     StoredObject get(String objectKey);
 

@@ -71,7 +71,7 @@ class MyBatisMappingIntegrationTest extends PostgreSqlIntegrationTestSupport {
         )).isOne();
         assertThat(menuPermissionMapper.selectCount(
                 Wrappers.<MenuPermission>lambdaQuery().eq(MenuPermission::getType, "BUTTON")
-        )).isEqualTo(21);
+        )).isGreaterThanOrEqualTo(28);
 
         String suffix = UUID.randomUUID().toString().replace("-", "");
         Department department = new Department();

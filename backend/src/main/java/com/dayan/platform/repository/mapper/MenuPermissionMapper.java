@@ -28,6 +28,22 @@ public interface MenuPermissionMapper extends BaseMapper<MenuPermission> {
     );
 
     @Select("""
+            <script>
+            SELECT *
+            FROM sys_menu_permission
+            <where>
+              <choose>
+                <when test="parentId == null">parent_id IS NULL</when>
+                <otherwise>parent_id = #{parentId}</otherwise>
+              </choose>
+            </where>
+            ORDER BY sort_order, id
+            FOR UPDATE
+            </script>
+            """)
+    List<MenuPermission> selectSiblingsForUpdate(@Param("parentId") Long parentId);
+
+    @Select("""
             WITH RECURSIVE granted AS (
                 SELECT DISTINCT p.id, p.parent_id
                 FROM sys_user_role ur

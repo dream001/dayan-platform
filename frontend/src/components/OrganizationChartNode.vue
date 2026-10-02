@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ArrowDown, ArrowRight, Edit, Plus } from '@element-plus/icons-vue'
-import { ref } from 'vue'
+import { ArrowDown, ArrowRight, Delete, Edit, Plus } from '@element-plus/icons-vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DepartmentNode } from '@/types/admin'
 
 defineOptions({ name: 'OrganizationChartNode' })
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   node: DepartmentNode
   root?: boolean
 }>(), {
@@ -15,17 +15,28 @@ withDefaults(defineProps<{
 
 const emit = defineEmits<{
   createChild: [node: DepartmentNode]
+  delete: [node: DepartmentNode]
   edit: [node: DepartmentNode]
 }>()
 
 const { t } = useI18n()
 const collapsed = ref(false)
+
+function leafCount(node: DepartmentNode): number {
+  if (!node.children.length) return 1
+  return node.children.reduce((total, child) => total + leafCount(child), 0)
+}
+
+const branchStyle = computed(() => ({
+  '--branch-span': leafCount(props.node),
+}))
 </script>
 
 <template>
   <li
     class="org-tree-item"
     :class="{ 'is-root': root }"
+    :style="branchStyle"
   >
     <article
       class="org-node"
@@ -40,7 +51,9 @@ const collapsed = ref(false)
       </div>
 
       <div class="org-node-main">
-        <strong>{{ node.name }}</strong>
+        <strong :title="node.name">
+          {{ node.name }}
+        </strong>
         <span class="org-node-code">{{ node.code }}</span>
       </div>
 
@@ -82,29 +95,49 @@ const collapsed = ref(false)
               @click="emit('edit', node)"
             />
           </el-tooltip>
+          <el-tooltip :content="t('departments.delete')">
+            <el-button
+              v-permission="'system:department:delete'"
+              :icon="Delete"
+              circle
+              text
+              type="danger"
+              :aria-label="t('departments.delete')"
+              @click="emit('delete', node)"
+            />
+          </el-tooltip>
         </span>
       </div>
     </article>
 
-    <ul
-      v-if="node.children.length && !collapsed"
-      class="org-tree-children"
-    >
-      <OrganizationChartNode
-        v-for="child in node.children"
-        :key="child.id"
-        :node="child"
-        @create-child="emit('createChild', $event)"
-        @edit="emit('edit', $event)"
-      />
-    </ul>
+    <Transition name="branch">
+      <ul
+        v-if="node.children.length && !collapsed"
+        class="org-tree-children"
+      >
+        <OrganizationChartNode
+          v-for="child in node.children"
+          :key="child.id"
+          :node="child"
+          @create-child="emit('createChild', $event)"
+          @delete="emit('delete', $event)"
+          @edit="emit('edit', $event)"
+        />
+      </ul>
+    </Transition>
   </li>
 </template>
 
 <style scoped>
 .org-tree-item {
+  --org-column-width: 240px;
+
   position: relative;
+  display: flex;
+  width: calc(var(--branch-span) * var(--org-column-width));
   flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
   padding: 28px 10px 0;
   list-style: none;
   text-align: center;
@@ -167,6 +200,7 @@ const collapsed = ref(false)
   position: relative;
   z-index: 1;
   width: 220px;
+  margin-inline: auto;
   overflow: hidden;
   border: 1px solid #cfdce1;
   border-top: 3px solid var(--color-accent);
@@ -247,17 +281,29 @@ const collapsed = ref(false)
   margin-right: auto;
   color: var(--color-text-muted);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .node-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 1px;
+}
+
+.node-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+.org-node-footer :deep(.el-button.is-circle) {
+  width: 28px;
+  height: 28px;
 }
 
 .org-tree-children {
   position: relative;
   display: flex;
+  width: 100%;
   justify-content: center;
   margin: 0;
   padding: 28px 0 0;
@@ -272,8 +318,22 @@ const collapsed = ref(false)
   content: '';
 }
 
+.branch-enter-active,
+.branch-leave-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+  transform-origin: top center;
+}
+
+.branch-enter-from,
+.branch-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 @media (max-width: 700px) {
   .org-tree-item {
+    --org-column-width: 204px;
+
     padding-inline: 7px;
   }
 
@@ -283,7 +343,9 @@ const collapsed = ref(false)
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .org-node {
+  .org-node,
+  .branch-enter-active,
+  .branch-leave-active {
     transition: none;
   }
 }
