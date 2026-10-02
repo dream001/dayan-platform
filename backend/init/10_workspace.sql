@@ -1,0 +1,3 @@
+-- 菜单：工作台（sort_order = 10）
+-- 工作台通过聚合 sys_user、file_metadata、operation_log 等业务表生成统计数据，
+-- 当前没有独立数据表。
