@@ -43,6 +43,15 @@ public final class RbacViews {
         }
     }
 
+    public record UserProjectOption(long id, String name) {
+    }
+
+    public record UserFilterOptions(List<UserProjectOption> projects) {
+        public UserFilterOptions {
+            projects = List.copyOf(projects);
+        }
+    }
+
     public record RoleSummary(
             long id,
             String name,

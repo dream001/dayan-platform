@@ -1,0 +1,3 @@
+{"sessionId": "login-no-response", "runId": "pre-fix", "hypothesisId": "H1", "location": "docker-compose", "msg": "[DEBUG] frontend container stopped", "data": {"status": "Exited (137)"}, "ts": 1790952427929}
+{"sessionId": "login-no-response", "runId": "pre-fix", "hypothesisId": "H2", "location": "frontend proxy", "msg": "[DEBUG] login proxy unavailable", "data": {"httpStatus": 502}, "ts": 1790952432797}
+{"sessionId": "login-no-response", "runId": "pre-fix", "hypothesisId": "H3", "location": "auth api", "msg": "[DEBUG] credentials previously verified", "data": {"username": "e2e_admin", "directLoginStatus": 200}, "ts": 1790952440340}

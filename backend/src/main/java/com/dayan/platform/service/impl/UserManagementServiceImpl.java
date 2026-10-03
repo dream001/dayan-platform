@@ -2,6 +2,7 @@ package com.dayan.platform.service.impl;
 
 import com.dayan.platform.common.api.ErrorCode;
 import com.dayan.platform.common.exception.BusinessException;
+import com.dayan.platform.dto.RbacDtos.BatchUserCreateRequest;
 import com.dayan.platform.dto.RbacDtos.UserCreateRequest;
 import com.dayan.platform.dto.RbacDtos.UserUpdateRequest;
 import com.dayan.platform.model.UserAccount;
@@ -10,10 +11,13 @@ import com.dayan.platform.repository.mapper.DepartmentMapper;
 import com.dayan.platform.repository.mapper.RoleMapper;
 import com.dayan.platform.repository.mapper.UserAccountMapper;
 import com.dayan.platform.repository.mapper.UserRoleMapper;
+import com.dayan.platform.repository.query.OptionRow;
 import com.dayan.platform.repository.query.UserSummaryRow;
 import com.dayan.platform.service.UserManagementService;
 import com.dayan.platform.vo.PageResponse;
 import com.dayan.platform.vo.RbacViews.RoleBrief;
+import com.dayan.platform.vo.RbacViews.UserFilterOptions;
+import com.dayan.platform.vo.RbacViews.UserProjectOption;
 import com.dayan.platform.vo.RbacViews.UserSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,18 +71,37 @@ public class UserManagementServiceImpl implements UserManagementService {
             int size,
             String keyword,
             Long departmentId,
-            Boolean enabled
+            Boolean enabled,
+            String roleCode,
+            Long projectId
     ) {
         String normalizedKeyword = normalizeNullable(keyword, false);
-        long total = userAccountMapper.countSummaries(normalizedKeyword, departmentId, enabled);
+        String normalizedRoleCode = normalizeEnum(roleCode);
+        long total = userAccountMapper.countSummaries(
+                normalizedKeyword,
+                departmentId,
+                enabled,
+                normalizedRoleCode,
+                projectId
+        );
         List<UserSummary> items = userAccountMapper.selectSummaryPage(
                 normalizedKeyword,
                 departmentId,
                 enabled,
+                normalizedRoleCode,
+                projectId,
                 (long) (page - 1) * size,
                 size
         ).stream().map(this::summary).toList();
         return PageResponse.of(page, size, total, items);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserFilterOptions filterOptions() {
+        return new UserFilterOptions(userAccountMapper.selectProjectOptions().stream()
+                .map(this::projectOption)
+                .toList());
     }
 
     @Override
@@ -112,6 +135,30 @@ public class UserManagementServiceImpl implements UserManagementService {
             throw new BusinessException(ErrorCode.CONFLICT, "Username or email already exists");
         }
         return detail(user.getId());
+    }
+
+    @Override
+    @Transactional
+    public List<UserSummary> createBatch(BatchUserCreateRequest request, long operatorId) {
+        validateDepartment(request.departmentId());
+        validatePassword(request.password());
+        Set<Long> roleIds = normalizedIds(request.roleIds());
+        validateRoleIds(roleIds);
+        return request.users().stream()
+                .map(entry -> create(
+                        new UserCreateRequest(
+                                request.departmentId(),
+                                entry.username(),
+                                request.password(),
+                                entry.displayName(),
+                                entry.email(),
+                                entry.phone(),
+                                request.enabled(),
+                                roleIds
+                        ),
+                        operatorId
+                ))
+                .toList();
     }
 
     @Override
@@ -169,6 +216,23 @@ public class UserManagementServiceImpl implements UserManagementService {
         userRoleMapper.deleteByUserId(id);
         if (!normalized.isEmpty()) {
             userRoleMapper.insertRoles(id, normalized, operatorId);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void delete(long id, long operatorId) {
+        if (id == operatorId) {
+            throw new BusinessException(ErrorCode.CONFLICT, "Current user cannot delete itself");
+        }
+        requireUser(id);
+        try {
+            userAccountMapper.deleteById(id);
+        } catch (DataIntegrityViolationException exception) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "User has related business data and cannot be deleted"
+            );
         }
     }
 
@@ -235,11 +299,19 @@ public class UserManagementServiceImpl implements UserManagementService {
         }
     }
 
+    private UserProjectOption projectOption(OptionRow row) {
+        return new UserProjectOption(row.id, row.name);
+    }
+
     private String normalizeNullable(String value, boolean lowerCase) {
         if (!StringUtils.hasText(value)) {
             return null;
         }
         String normalized = value.trim();
         return lowerCase ? normalized.toLowerCase(Locale.ROOT) : normalized;
+    }
+
+    private String normalizeEnum(String value) {
+        return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 }

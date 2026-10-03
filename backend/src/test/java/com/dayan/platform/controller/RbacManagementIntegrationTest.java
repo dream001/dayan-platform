@@ -160,6 +160,93 @@ class RbacManagementIntegrationTest extends PostgreSqlIntegrationTestSupport {
     }
 
     @Test
+    void filtersUsersByRoleAndProjectAndCreatesUsersInBatch() throws Exception {
+        long collectorRoleId = jdbcTemplate.queryForObject(
+                "SELECT id FROM sys_role WHERE code = 'COLLECTOR'",
+                Long.class
+        );
+        long collectorId = insertUser("filter-collector", "Filter-Collector-Password-2026");
+        jdbcTemplate.update(
+                "INSERT INTO sys_user_role (user_id, role_id, assigned_by) VALUES (?, ?, ?)",
+                collectorId,
+                collectorRoleId,
+                adminId
+        );
+        long projectId = jdbcTemplate.queryForObject(
+                """
+                INSERT INTO basic_project (
+                    code, name, project_type, access_level, status,
+                    storage_provider, storage_quota_bytes, owner_id
+                )
+                VALUES ('USER_FILTER', 'User filter project', 'TEAM', 'PRIVATE',
+                        'PLANNING', 'MINIO', 1073741824, ?)
+                RETURNING id
+                """,
+                Long.class,
+                adminId
+        );
+        jdbcTemplate.update(
+                """
+                INSERT INTO basic_project_member (
+                    project_id, user_id, role, data_access_level, assigned_by
+                )
+                VALUES (?, ?, 'ANNOTATOR', 'READ_WRITE', ?)
+                """,
+                projectId,
+                collectorId,
+                adminId
+        );
+
+        mockMvc.perform(get(SYSTEM + "/users")
+                        .header("Authorization", bearer(adminToken))
+                        .queryParam("roleCode", "COLLECTOR"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].username").value("filter-collector"));
+
+        mockMvc.perform(get(SYSTEM + "/users")
+                        .header("Authorization", bearer(adminToken))
+                        .queryParam("projectId", Long.toString(projectId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].username").value("filter-collector"));
+
+        mockMvc.perform(get(SYSTEM + "/users/filter-options")
+                        .header("Authorization", bearer(adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projects[0].name").value("User filter project"));
+
+        mockMvc.perform(post(SYSTEM + "/users/batch")
+                        .header("Authorization", bearer(adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "departmentId": null,
+                                  "password": "Batch-User-Password-2026",
+                                  "enabled": true,
+                                  "roleIds": [%d],
+                                  "users": [
+                                    {
+                                      "username": "batch-user-a",
+                                      "displayName": "Batch User A",
+                                      "email": "batch-a@example.com",
+                                      "phone": ""
+                                    },
+                                    {
+                                      "username": "batch-user-b",
+                                      "displayName": "Batch User B",
+                                      "email": "batch-b@example.com",
+                                      "phone": ""
+                                    }
+                                  ]
+                                }
+                                """.formatted(collectorRoleId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].roles[0].code").value("COLLECTOR"));
+    }
+
+    @Test
     void grantsMenuPermissionsAndReturnsCurrentDynamicMenuTree() throws Exception {
         long roleId = createRole("Report viewer", "REPORT_VIEWER");
         long userId = insertUser("report-viewer", "Report-Viewer-Password-2026");
@@ -299,6 +386,25 @@ class RbacManagementIntegrationTest extends PostgreSqlIntegrationTestSupport {
         assertRefreshRejected(enabledTokens.path("refreshToken").asText());
         assertThat(login("session-user", "Reset-Session-Password-2026")
                 .path("accessToken").asText()).isNotBlank();
+    }
+
+    @Test
+    void deletesUnreferencedUsersButRejectsDeletingCurrentUser() throws Exception {
+        long userId = insertUser("delete-user", "Delete-User-Password-2026");
+
+        mockMvc.perform(delete(SYSTEM + "/users/" + userId)
+                        .header("Authorization", bearer(adminToken)))
+                .andExpect(status().isOk());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM sys_user WHERE id = ?",
+                Integer.class,
+                userId
+        )).isZero();
+
+        mockMvc.perform(delete(SYSTEM + "/users/" + adminId)
+                        .header("Authorization", bearer(adminToken)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Current user cannot delete itself"));
     }
 
     private long createDepartment(String name, String code, Long parentId) throws Exception {

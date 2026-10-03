@@ -16,6 +16,15 @@ public class DatasetAnnotation {
     private Long annotatorId;
     private String contentText;
     private BigDecimal coveredDurationSeconds;
+    private String skillName;
+    private String skillNameZh;
+    private String objectAName;
+    private String objectANameZh;
+    private String objectBName;
+    private String objectBNameZh;
+    private String actionName;
+    private BigDecimal startOffsetSeconds;
+    private BigDecimal endOffsetSeconds;
     private Boolean isValid;
     private Boolean isQualified;
     private Boolean reviewed;
@@ -70,6 +79,78 @@ public class DatasetAnnotation {
 
     public void setCoveredDurationSeconds(BigDecimal coveredDurationSeconds) {
         this.coveredDurationSeconds = coveredDurationSeconds;
+    }
+
+    public String getSkillName() {
+        return skillName;
+    }
+
+    public void setSkillName(String skillName) {
+        this.skillName = skillName;
+    }
+
+    public String getSkillNameZh() {
+        return skillNameZh;
+    }
+
+    public void setSkillNameZh(String skillNameZh) {
+        this.skillNameZh = skillNameZh;
+    }
+
+    public String getObjectAName() {
+        return objectAName;
+    }
+
+    public void setObjectAName(String objectAName) {
+        this.objectAName = objectAName;
+    }
+
+    public String getObjectANameZh() {
+        return objectANameZh;
+    }
+
+    public void setObjectANameZh(String objectANameZh) {
+        this.objectANameZh = objectANameZh;
+    }
+
+    public String getObjectBName() {
+        return objectBName;
+    }
+
+    public void setObjectBName(String objectBName) {
+        this.objectBName = objectBName;
+    }
+
+    public String getObjectBNameZh() {
+        return objectBNameZh;
+    }
+
+    public void setObjectBNameZh(String objectBNameZh) {
+        this.objectBNameZh = objectBNameZh;
+    }
+
+    public String getActionName() {
+        return actionName;
+    }
+
+    public void setActionName(String actionName) {
+        this.actionName = actionName;
+    }
+
+    public BigDecimal getStartOffsetSeconds() {
+        return startOffsetSeconds;
+    }
+
+    public void setStartOffsetSeconds(BigDecimal startOffsetSeconds) {
+        this.startOffsetSeconds = startOffsetSeconds;
+    }
+
+    public BigDecimal getEndOffsetSeconds() {
+        return endOffsetSeconds;
+    }
+
+    public void setEndOffsetSeconds(BigDecimal endOffsetSeconds) {
+        this.endOffsetSeconds = endOffsetSeconds;
     }
 
     public Boolean getIsValid() {

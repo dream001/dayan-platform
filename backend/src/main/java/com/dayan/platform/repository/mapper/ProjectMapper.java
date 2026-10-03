@@ -2,6 +2,7 @@ package com.dayan.platform.repository.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.dayan.platform.model.Project;
+import com.dayan.platform.repository.query.ProjectMetricsRow;
 import com.dayan.platform.repository.query.ProjectSummaryRow;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
@@ -106,4 +107,46 @@ public interface ProjectMapper extends BaseMapper<Project> {
             @Param("id") long id,
             @Param("userId") long userId
     );
+
+    @Select("""
+            SELECT
+              (SELECT count(*) FROM data_dataset d
+               WHERE d.project_id = #{projectId} AND d.deleted = FALSE) AS dataset_count,
+              (SELECT count(*) FROM data_dataset d
+               WHERE d.project_id = #{projectId} AND d.deleted = FALSE
+                 AND d.data_type = 'VIDEO') AS video_count,
+              (SELECT count(*) FROM data_dataset d
+               WHERE d.project_id = #{projectId} AND d.deleted = FALSE
+                 AND d.data_type = 'AUDIO') AS audio_count,
+              (SELECT count(*) FROM data_dataset d
+               WHERE d.project_id = #{projectId} AND d.deleted = FALSE
+                 AND d.data_type = 'MCAP') AS mcap_count,
+              (SELECT coalesce(sum(d.size_bytes), 0) FROM data_dataset d
+               WHERE d.project_id = #{projectId} AND d.deleted = FALSE) AS storage_used_bytes,
+              (SELECT count(*) FROM data_annotation_task t
+               WHERE t.project_id = #{projectId} AND t.deleted_at IS NULL) AS annotation_task_count,
+              (SELECT count(*) FROM data_collection_task t
+               WHERE t.project_id = #{projectId} AND t.deleted_at IS NULL) AS collection_task_count,
+              ((SELECT count(*) FROM data_annotation_task t
+                WHERE t.project_id = #{projectId} AND t.deleted_at IS NULL
+                  AND t.status IN ('APPROVED', 'SUBMITTED'))
+               +
+               (SELECT count(*) FROM data_collection_task t
+                WHERE t.project_id = #{projectId} AND t.deleted_at IS NULL
+                  AND t.status IN ('APPROVED', 'SUBMITTED'))) AS completed_task_count,
+              (SELECT coalesce(
+                   round(100.0 * count(*) FILTER (WHERE a.is_qualified) / nullif(count(*), 0), 2),
+                   0
+               )
+               FROM data_annotation a
+               JOIN data_dataset d ON d.id = a.dataset_id
+               WHERE d.project_id = #{projectId} AND d.deleted = FALSE
+                 AND a.reviewed = TRUE) AS quality_rate,
+              (SELECT count(*) FROM basic_project_member pm
+               WHERE pm.project_id = #{projectId}
+                 AND (pm.valid_from IS NULL OR pm.valid_from <= CURRENT_TIMESTAMP)
+                 AND (pm.valid_until IS NULL OR pm.valid_until > CURRENT_TIMESTAMP))
+                 AS active_member_count
+            """)
+    ProjectMetricsRow selectMetrics(@Param("projectId") long projectId);
 }

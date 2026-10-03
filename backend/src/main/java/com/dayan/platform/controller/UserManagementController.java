@@ -1,6 +1,7 @@
 package com.dayan.platform.controller;
 
 import com.dayan.platform.audit.Audited;
+import com.dayan.platform.dto.RbacDtos.BatchUserCreateRequest;
 import com.dayan.platform.dto.RbacDtos.IdSetRequest;
 import com.dayan.platform.dto.RbacDtos.PasswordResetRequest;
 import com.dayan.platform.dto.RbacDtos.StatusRequest;
@@ -8,14 +9,18 @@ import com.dayan.platform.dto.RbacDtos.UserCreateRequest;
 import com.dayan.platform.dto.RbacDtos.UserUpdateRequest;
 import com.dayan.platform.service.UserManagementService;
 import com.dayan.platform.vo.PageResponse;
+import com.dayan.platform.vo.RbacViews.UserFilterOptions;
 import com.dayan.platform.vo.RbacViews.UserSummary;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
+import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,9 +49,25 @@ public class UserManagementController {
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long departmentId,
-            @RequestParam(required = false) Boolean enabled
+            @RequestParam(required = false) Boolean enabled,
+            @RequestParam(required = false) @Size(max = 64) String roleCode,
+            @RequestParam(required = false) @Min(1) Long projectId
     ) {
-        return userManagementService.page(page, size, keyword, departmentId, enabled);
+        return userManagementService.page(
+                page,
+                size,
+                keyword,
+                departmentId,
+                enabled,
+                roleCode,
+                projectId
+        );
+    }
+
+    @GetMapping("/filter-options")
+    @PreAuthorize("hasAuthority('system:user:view')")
+    public UserFilterOptions filterOptions() {
+        return userManagementService.filterOptions();
     }
 
     @GetMapping("/{id}")
@@ -68,6 +89,16 @@ public class UserManagementController {
             @Valid @RequestBody UserCreateRequest request
     ) {
         return userManagementService.create(request, userId(jwt));
+    }
+
+    @PostMapping("/batch")
+    @PreAuthorize("hasAuthority('system:user:create')")
+    @Audited(module = "USER", action = "BATCH_CREATE", targetType = "USER_BATCH")
+    public List<UserSummary> createBatch(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody BatchUserCreateRequest request
+    ) {
+        return userManagementService.createBatch(request, userId(jwt));
     }
 
     @PutMapping("/{id}")
@@ -110,6 +141,16 @@ public class UserManagementController {
             @Valid @RequestBody IdSetRequest request
     ) {
         userManagementService.assignRoles(id, request.ids(), userId(jwt));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('system:user:delete')")
+    @Audited(module = "USER", action = "DELETE", targetType = "USER", targetId = "#id")
+    public void delete(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable long id
+    ) {
+        userManagementService.delete(id, userId(jwt));
     }
 
     private long userId(Jwt jwt) {

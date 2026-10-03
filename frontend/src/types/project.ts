@@ -39,6 +39,21 @@ export interface ProjectDetail {
   ownerId: number
   ownerName: string
   createdAt: string
+  metrics: ProjectMetrics
+}
+
+export interface ProjectMetrics {
+  datasetCount: number
+  videoCount: number
+  audioCount: number
+  mcapCount: number
+  storageUsedBytes: number
+  annotationTaskCount: number
+  collectionTaskCount: number
+  completedTaskCount: number
+  taskCompletionRate: number
+  qualityRate: number
+  activeMemberCount: number
 }
 
 export interface ProjectPayload {

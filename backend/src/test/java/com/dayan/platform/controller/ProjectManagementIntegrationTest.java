@@ -78,7 +78,12 @@ class ProjectManagementIntegrationTest extends PostgreSqlIntegrationTestSupport 
                 .andExpect(jsonPath("$.data.summary.code").value("VISION_2026"))
                 .andExpect(jsonPath("$.data.summary.memberCount").value(1))
                 .andExpect(jsonPath("$.data.qualityThreshold").value(95.5))
-                .andExpect(jsonPath("$.data.reviewMode").value("DOUBLE_REVIEW"));
+                .andExpect(jsonPath("$.data.reviewMode").value("DOUBLE_REVIEW"))
+                .andExpect(jsonPath("$.data.metrics.datasetCount").value(0))
+                .andExpect(jsonPath("$.data.metrics.storageUsedBytes").value(0))
+                .andExpect(jsonPath("$.data.metrics.taskCompletionRate").value(0))
+                .andExpect(jsonPath("$.data.metrics.qualityRate").value(0))
+                .andExpect(jsonPath("$.data.metrics.activeMemberCount").value(1));
 
         long memberId = createManagerUser("project-member");
         mockMvc.perform(put(PROJECTS + "/" + projectId + "/members")

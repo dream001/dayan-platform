@@ -20,6 +20,7 @@ import com.dayan.platform.repository.mapper.AnnotationTaskWorkflowMapper;
 import com.dayan.platform.repository.mapper.DatasetAnnotationMapper;
 import com.dayan.platform.repository.mapper.DatasetMapper;
 import com.dayan.platform.repository.mapper.DatasetTagMapper;
+import com.dayan.platform.repository.mapper.RobotMapper;
 import com.dayan.platform.repository.mapper.StoredFileMapper;
 import com.dayan.platform.repository.mapper.UserAccountMapper;
 import com.dayan.platform.repository.query.AnnotationAggRow;
@@ -67,6 +68,7 @@ public class DatasetServiceImpl implements DatasetService {
     private final AnnotationTaskMapper annotationTaskMapper;
     private final AnnotationTaskWorkflowMapper annotationTaskWorkflowMapper;
     private final DatasetAnnotationMapper datasetAnnotationMapper;
+    private final RobotMapper robotMapper;
     private final StoredFileMapper storedFileMapper;
     private final UserAccountMapper userAccountMapper;
     private final ObjectStorage objectStorage;
@@ -78,6 +80,7 @@ public class DatasetServiceImpl implements DatasetService {
             AnnotationTaskMapper annotationTaskMapper,
             AnnotationTaskWorkflowMapper annotationTaskWorkflowMapper,
             DatasetAnnotationMapper datasetAnnotationMapper,
+            RobotMapper robotMapper,
             StoredFileMapper storedFileMapper,
             UserAccountMapper userAccountMapper,
             ObjectStorage objectStorage,
@@ -88,6 +91,7 @@ public class DatasetServiceImpl implements DatasetService {
         this.annotationTaskMapper = annotationTaskMapper;
         this.annotationTaskWorkflowMapper = annotationTaskWorkflowMapper;
         this.datasetAnnotationMapper = datasetAnnotationMapper;
+        this.robotMapper = robotMapper;
         this.storedFileMapper = storedFileMapper;
         this.userAccountMapper = userAccountMapper;
         this.objectStorage = objectStorage;
@@ -342,6 +346,13 @@ public class DatasetServiceImpl implements DatasetService {
         List<Dataset> datasets = requireActive(request.ids(), userId, admin);
         guardOpenShared(datasets);
         String robot = blankToNull(request.robotCode());
+        if (robot != null) {
+            var catalogRobot = robotMapper.selectAnyByName(robot);
+            if (catalogRobot == null || Boolean.TRUE.equals(catalogRobot.getDeleted())) {
+                throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "Robot is not active");
+            }
+            robot = catalogRobot.getName();
+        }
         for (Dataset dataset : datasets) {
             datasetMapper.update(
                     null,
@@ -423,7 +434,7 @@ public class DatasetServiceImpl implements DatasetService {
 
     @Override
     public List<String> robotOptions() {
-        return datasetMapper.selectRobotCodes();
+        return robotMapper.selectActiveNames();
     }
 
     @Override

@@ -10,16 +10,20 @@ import com.dayan.platform.repository.mapper.ProjectMapper;
 import com.dayan.platform.repository.mapper.ProjectMemberMapper;
 import com.dayan.platform.repository.mapper.UserAccountMapper;
 import com.dayan.platform.repository.query.ProjectMemberRow;
+import com.dayan.platform.repository.query.ProjectMetricsRow;
 import com.dayan.platform.repository.query.ProjectSummaryRow;
 import com.dayan.platform.service.ProjectService;
 import com.dayan.platform.vo.PageResponse;
 import com.dayan.platform.vo.ProjectViews.ProjectDetail;
 import com.dayan.platform.vo.ProjectViews.ProjectMember;
+import com.dayan.platform.vo.ProjectViews.ProjectMetrics;
 import com.dayan.platform.vo.ProjectViews.ProjectOverview;
 import com.dayan.platform.vo.ProjectViews.ProjectSummary;
 import com.dayan.platform.vo.ProjectViews.ProjectUserOption;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -365,8 +369,38 @@ public class ProjectServiceImpl implements ProjectService {
                 Boolean.TRUE.equals(row.getNotificationEnabled()),
                 row.getOwnerId(),
                 row.getOwnerName(),
-                row.getCreatedAt()
+                row.getCreatedAt(),
+                metrics(projectMapper.selectMetrics(row.getId()))
         );
+    }
+
+    private ProjectMetrics metrics(ProjectMetricsRow row) {
+        long annotationTasks = value(row.getAnnotationTaskCount());
+        long collectionTasks = value(row.getCollectionTaskCount());
+        long totalTasks = annotationTasks + collectionTasks;
+        long completedTasks = value(row.getCompletedTaskCount());
+        BigDecimal completionRate = totalTasks == 0
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(completedTasks)
+                        .multiply(BigDecimal.valueOf(100))
+                        .divide(BigDecimal.valueOf(totalTasks), 2, RoundingMode.HALF_UP);
+        return new ProjectMetrics(
+                value(row.getDatasetCount()),
+                value(row.getVideoCount()),
+                value(row.getAudioCount()),
+                value(row.getMcapCount()),
+                value(row.getStorageUsedBytes()),
+                annotationTasks,
+                collectionTasks,
+                completedTasks,
+                completionRate,
+                row.getQualityRate() == null ? BigDecimal.ZERO : row.getQualityRate(),
+                value(row.getActiveMemberCount())
+        );
+    }
+
+    private long value(Long value) {
+        return value == null ? 0 : value;
     }
 
     private ProjectSummary summary(ProjectSummaryRow row, boolean platformAdmin) {

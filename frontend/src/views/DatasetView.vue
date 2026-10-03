@@ -150,7 +150,7 @@ function readRoute() {
   filters.scope = scope === 'PROJECT' || scope === 'PERSONAL' ? (scope as DatasetScope) : 'ALL'
   filters.projectIds = parseIds(route.query.projectIds)
   filters.name = textOrEmpty(route.query.name)
-  filters.robotCode = textOrEmpty(route.query.robotCode)
+  filters.robotCode = textOrEmpty(route.query.robot ?? route.query.robotCode)
   filters.tag = textOrEmpty(route.query.tag)
   filters.uploaderId = numberOrNull(route.query.uploaderId)
   filters.collectorIds = parseIds(route.query.collectorIds)
@@ -188,7 +188,7 @@ function syncRoute() {
   if (filters.scope !== 'ALL') query.scope = filters.scope
   if (filters.projectIds.length) query.projectIds = filters.projectIds.join(',')
   if (filters.name.trim()) query.name = filters.name.trim()
-  if (filters.robotCode.trim()) query.robotCode = filters.robotCode.trim()
+  if (filters.robotCode.trim()) query.robot = filters.robotCode.trim()
   if (filters.tag.trim()) query.tag = filters.tag.trim()
   if (filters.uploaderId != null) query.uploaderId = String(filters.uploaderId)
   if (filters.collectorIds.length) query.collectorIds = filters.collectorIds.join(',')

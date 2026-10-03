@@ -532,6 +532,16 @@ onMounted(async () => {
 
 .task-toolbar .filter-bar {
   flex: 1;
+  flex-wrap: nowrap;
+}
+
+.task-toolbar .filter-bar .el-input {
+  width: 160px;
+}
+
+.task-toolbar .filter-bar .el-select,
+.task-toolbar .filter-bar .el-date-editor {
+  width: 130px;
 }
 
 .status-board {
@@ -677,6 +687,10 @@ onMounted(async () => {
   .task-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .task-toolbar .filter-bar {
+    flex-wrap: wrap;
   }
 
   .task-toolbar :deep(.el-segmented) {

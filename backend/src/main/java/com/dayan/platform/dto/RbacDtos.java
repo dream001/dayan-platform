@@ -1,6 +1,7 @@
 package com.dayan.platform.dto;
 
 import jakarta.validation.constraints.Email;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -45,6 +46,26 @@ public final class RbacDtos {
             @Email @Size(max = 254) String email,
             @Pattern(regexp = "^$|^[0-9+() -]{3,32}$", message = "phone format is invalid")
             String phone
+    ) {
+    }
+
+    public record BatchUserEntry(
+            @NotBlank @Size(max = 64)
+            @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "username format is invalid")
+            String username,
+            @NotBlank @Size(max = 100) String displayName,
+            @Email @Size(max = 254) String email,
+            @Pattern(regexp = "^$|^[0-9+() -]{3,32}$", message = "phone format is invalid")
+            String phone
+    ) {
+    }
+
+    public record BatchUserCreateRequest(
+            Long departmentId,
+            @NotBlank @Size(min = 12, max = 72) String password,
+            @NotNull Boolean enabled,
+            Set<Long> roleIds,
+            @NotEmpty @Size(max = 200) List<@Valid BatchUserEntry> users
     ) {
     }
 

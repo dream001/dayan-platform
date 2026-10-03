@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   Delete,
+  Download,
   Edit,
   MoreFilled,
   Plus,
@@ -8,7 +9,7 @@ import {
   User,
   View,
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PageHeader from '@/components/PageHeader.vue'
@@ -63,6 +64,7 @@ const editorMode = ref<'create' | 'edit'>('create')
 const editorTab = ref('basic')
 const editingId = ref<number | null>(null)
 const saving = ref(false)
+const formRef = ref<FormInstance>()
 const quotaGb = ref(10)
 const form = reactive<ProjectPayload>({
   code: '',
@@ -79,6 +81,74 @@ const form = reactive<ProjectPayload>({
   reviewMode: 'SINGLE_REVIEW',
   notificationEnabled: true,
 })
+const projectRules = computed<FormRules<ProjectPayload>>(() => ({
+  name: [
+    { required: true, message: t('projects.fieldValidation.nameRequired'), trigger: 'blur' },
+    { pattern: /\S/, message: t('projects.fieldValidation.nameRequired'), trigger: 'blur' },
+    { max: 120, message: t('projects.fieldValidation.nameLength'), trigger: 'blur' },
+  ],
+  code: [
+    { required: true, message: t('projects.fieldValidation.codeRequired'), trigger: 'blur' },
+    {
+      pattern: /^[A-Za-z][A-Za-z0-9_-]*$/,
+      message: t('projects.fieldValidation.codeFormat'),
+      trigger: 'blur',
+    },
+    { max: 64, message: t('projects.fieldValidation.codeLength'), trigger: 'blur' },
+  ],
+  description: [
+    { max: 1000, message: t('projects.fieldValidation.descriptionLength'), trigger: 'blur' },
+  ],
+  projectType: [
+    { required: true, message: t('projects.fieldValidation.projectTypeRequired'), trigger: 'change' },
+  ],
+  accessLevel: [
+    { required: true, message: t('projects.fieldValidation.accessLevelRequired'), trigger: 'change' },
+  ],
+  storageProvider: [
+    { required: true, message: t('projects.fieldValidation.storageProviderRequired'), trigger: 'blur' },
+    {
+      pattern: /^[A-Za-z0-9_-]{1,32}$/,
+      message: t('projects.fieldValidation.storageProviderFormat'),
+      trigger: 'blur',
+    },
+  ],
+  storageQuotaBytes: [{
+    validator: (_rule, _value, callback) => {
+      if (!Number.isFinite(quotaGb.value) || quotaGb.value < 1 || quotaGb.value > 1048576) {
+        callback(new Error(t('projects.fieldValidation.storageQuotaRange')))
+        return
+      }
+      callback()
+    },
+    trigger: 'change',
+  }],
+  endDate: [{
+    validator: (_rule, value, callback) => {
+      if (form.startDate && value && form.startDate > value) {
+        callback(new Error(t('projects.fieldValidation.endDateRange')))
+        return
+      }
+      callback()
+    },
+    trigger: 'change',
+  }],
+  annotationGuideline: [
+    { max: 10000, message: t('projects.fieldValidation.guidelineLength'), trigger: 'blur' },
+  ],
+  qualityThreshold: [
+    {
+      type: 'number',
+      min: 0,
+      max: 100,
+      message: t('projects.fieldValidation.qualityThresholdRange'),
+      trigger: 'change',
+    },
+  ],
+  reviewMode: [
+    { required: true, message: t('projects.fieldValidation.reviewModeRequired'), trigger: 'change' },
+  ],
+}))
 
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -220,12 +290,10 @@ async function openEdit(project: ProjectSummary) {
 }
 
 async function saveProject() {
-  if (!form.name.trim() || !form.code.trim() || quotaGb.value <= 0) {
-    ElMessage.warning(t('projects.validation'))
-    return
-  }
-  if (form.startDate && form.endDate && form.startDate > form.endDate) {
-    ElMessage.warning(t('projects.invalidDates'))
+  form.storageQuotaBytes = quotaGb.value * GIB
+  try {
+    await formRef.value?.validate()
+  } catch {
     return
   }
   saving.value = true
@@ -284,6 +352,37 @@ async function loadMembers() {
 
 function selectDetailTab(name: string | number) {
   if (name === 'members' && !members.value.length) void loadMembers()
+}
+
+function exportProjectReport() {
+  if (!detail.value) return
+  const project = detail.value
+  const metrics = project.metrics
+  const rows = [
+    [t('projects.reportField'), t('projects.reportValue')],
+    [t('projects.name'), project.summary.name],
+    [t('projects.code'), project.summary.code],
+    [t('common.status'), t(`projects.statuses.${project.summary.status}`)],
+    [t('projects.owner'), project.ownerName],
+    [t('projects.datasetCount'), metrics.datasetCount],
+    [t('projects.storageUsed'), formatBytes(metrics.storageUsedBytes)],
+    [t('projects.annotationTasks'), metrics.annotationTaskCount],
+    [t('projects.collectionTasks'), metrics.collectionTaskCount],
+    [t('projects.completedTasks'), metrics.completedTaskCount],
+    [t('projects.taskCompletionRate'), `${metrics.taskCompletionRate}%`],
+    [t('projects.qualityRate'), `${metrics.qualityRate}%`],
+    [t('projects.activeMembers'), metrics.activeMemberCount],
+    [t('projects.updatedAt'), formatDateTime(project.summary.updatedAt)],
+  ]
+  const csv = rows
+    .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(','))
+    .join('\n')
+  const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${project.summary.code}-project-report.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 async function transition(project: ProjectSummary, status: ProjectStatus) {
@@ -658,7 +757,10 @@ onMounted(load)
       destroy-on-close
     >
       <el-form
+        ref="formRef"
         class="drawer-form"
+        :model="form"
+        :rules="projectRules"
         label-position="top"
         @submit.prevent="saveProject"
       >
@@ -670,6 +772,7 @@ onMounted(load)
             <div class="form-grid">
               <el-form-item
                 :label="t('projects.name')"
+                prop="name"
                 required
               >
                 <el-input
@@ -679,6 +782,7 @@ onMounted(load)
               </el-form-item>
               <el-form-item
                 :label="t('projects.code')"
+                prop="code"
                 required
               >
                 <el-input
@@ -690,6 +794,7 @@ onMounted(load)
               <el-form-item
                 class="form-grid__wide"
                 :label="t('projects.projectDescription')"
+                prop="description"
               >
                 <el-input
                   v-model="form.description"
@@ -699,7 +804,10 @@ onMounted(load)
                   show-word-limit
                 />
               </el-form-item>
-              <el-form-item :label="t('projects.projectType')">
+              <el-form-item
+                :label="t('projects.projectType')"
+                prop="projectType"
+              >
                 <el-select
                   v-model="form.projectType"
                   style="width: 100%"
@@ -712,7 +820,10 @@ onMounted(load)
                   />
                 </el-select>
               </el-form-item>
-              <el-form-item :label="t('projects.accessLevel')">
+              <el-form-item
+                :label="t('projects.accessLevel')"
+                prop="accessLevel"
+              >
                 <el-select
                   v-model="form.accessLevel"
                   style="width: 100%"
@@ -725,7 +836,10 @@ onMounted(load)
                   />
                 </el-select>
               </el-form-item>
-              <el-form-item :label="t('projects.startDate')">
+              <el-form-item
+                :label="t('projects.startDate')"
+                prop="startDate"
+              >
                 <el-date-picker
                   v-model="form.startDate"
                   type="date"
@@ -733,7 +847,10 @@ onMounted(load)
                   style="width: 100%"
                 />
               </el-form-item>
-              <el-form-item :label="t('projects.endDate')">
+              <el-form-item
+                :label="t('projects.endDate')"
+                prop="endDate"
+              >
                 <el-date-picker
                   v-model="form.endDate"
                   type="date"
@@ -741,13 +858,19 @@ onMounted(load)
                   style="width: 100%"
                 />
               </el-form-item>
-              <el-form-item :label="t('projects.storageProvider')">
+              <el-form-item
+                :label="t('projects.storageProvider')"
+                prop="storageProvider"
+              >
                 <el-input
                   v-model="form.storageProvider"
                   maxlength="32"
                 />
               </el-form-item>
-              <el-form-item :label="t('projects.storageQuota')">
+              <el-form-item
+                :label="t('projects.storageQuota')"
+                prop="storageQuotaBytes"
+              >
                 <el-input-number
                   v-model="quotaGb"
                   :min="1"
@@ -762,7 +885,10 @@ onMounted(load)
             :label="t('projects.qualityWorkflow')"
             name="quality"
           >
-            <el-form-item :label="t('projects.annotationGuideline')">
+            <el-form-item
+              :label="t('projects.annotationGuideline')"
+              prop="annotationGuideline"
+            >
               <el-input
                 v-model="form.annotationGuideline"
                 type="textarea"
@@ -772,7 +898,10 @@ onMounted(load)
               />
             </el-form-item>
             <div class="form-grid">
-              <el-form-item :label="t('projects.qualityThreshold')">
+              <el-form-item
+                :label="t('projects.qualityThreshold')"
+                prop="qualityThreshold"
+              >
                 <el-input-number
                   v-model="form.qualityThreshold"
                   :min="0"
@@ -782,7 +911,10 @@ onMounted(load)
                   style="width: 100%"
                 />
               </el-form-item>
-              <el-form-item :label="t('projects.reviewMode')">
+              <el-form-item
+                :label="t('projects.reviewMode')"
+                prop="reviewMode"
+              >
                 <el-select
                   v-model="form.reviewMode"
                   style="width: 100%"
@@ -922,6 +1054,82 @@ onMounted(load)
           <p class="detail-meta">
             {{ t('projects.updatedAt') }} {{ formatDateTime(detail.summary.updatedAt) }}
           </p>
+        </el-tab-pane>
+        <el-tab-pane
+          :label="t('projects.monitoringTab')"
+          name="monitoring"
+        >
+          <div class="monitoring-toolbar">
+            <span>{{ t('projects.monitoringHint') }}</span>
+            <el-button
+              :icon="Download"
+              @click="exportProjectReport"
+            >
+              {{ t('projects.exportReport') }}
+            </el-button>
+          </div>
+          <div class="metric-grid">
+            <div>
+              <span>{{ t('projects.datasetCount') }}</span>
+              <strong>{{ detail.metrics.datasetCount }}</strong>
+              <small>
+                {{ t('projects.datasetTypeBreakdown', {
+                  video: detail.metrics.videoCount,
+                  audio: detail.metrics.audioCount,
+                  mcap: detail.metrics.mcapCount,
+                }) }}
+              </small>
+            </div>
+            <div>
+              <span>{{ t('projects.storageUsed') }}</span>
+              <strong>{{ formatBytes(detail.metrics.storageUsedBytes) }}</strong>
+              <el-progress
+                :percentage="Math.min(100, Math.round(
+                  detail.metrics.storageUsedBytes / detail.summary.storageQuotaBytes * 100,
+                ))"
+                :show-text="false"
+              />
+              <small>{{ t('projects.storageQuotaLabel', {
+                quota: formatBytes(detail.summary.storageQuotaBytes),
+              }) }}</small>
+            </div>
+            <div>
+              <span>{{ t('projects.taskProgress') }}</span>
+              <strong>{{ detail.metrics.taskCompletionRate }}%</strong>
+              <el-progress
+                :percentage="Number(detail.metrics.taskCompletionRate)"
+                :show-text="false"
+              />
+              <small>{{ t('projects.completedTaskSummary', {
+                completed: detail.metrics.completedTaskCount,
+                total: detail.metrics.annotationTaskCount + detail.metrics.collectionTaskCount,
+              }) }}</small>
+            </div>
+            <div>
+              <span>{{ t('projects.qualityRate') }}</span>
+              <strong>{{ detail.metrics.qualityRate }}%</strong>
+              <el-progress
+                :percentage="Number(detail.metrics.qualityRate)"
+                :show-text="false"
+                :status="detail.metrics.qualityRate >= detail.qualityThreshold ? 'success' : 'warning'"
+              />
+              <small>{{ t('projects.qualityTarget', { target: detail.qualityThreshold }) }}</small>
+            </div>
+          </div>
+          <dl class="monitoring-breakdown">
+            <div>
+              <dt>{{ t('projects.annotationTasks') }}</dt>
+              <dd>{{ detail.metrics.annotationTaskCount }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('projects.collectionTasks') }}</dt>
+              <dd>{{ detail.metrics.collectionTaskCount }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('projects.activeMembers') }}</dt>
+              <dd>{{ detail.metrics.activeMemberCount }}</dd>
+            </div>
+          </dl>
         </el-tab-pane>
         <el-tab-pane
           :label="t('projects.membersTab', { count: detail.summary.memberCount })"
@@ -1247,12 +1455,76 @@ onMounted(load)
 }
 
 .detail-actions,
-.member-toolbar {
+.member-toolbar,
+.monitoring-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 18px;
+}
+
+.monitoring-toolbar > span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+}
+
+.metric-grid > div {
+  display: flex;
+  min-height: 138px;
+  flex-direction: column;
+  gap: 9px;
+  padding: 18px;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.metric-grid span,
+.metric-grid small,
+.monitoring-breakdown dt {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.metric-grid strong {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 620;
+}
+
+.monitoring-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 24px 0 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.monitoring-breakdown > div {
+  padding: 0 16px 16px;
+  border-right: 1px solid var(--color-border);
+}
+
+.monitoring-breakdown > div:first-child {
+  padding-left: 0;
+}
+
+.monitoring-breakdown > div:last-child {
+  border-right: 0;
+}
+
+.monitoring-breakdown dd {
+  margin: 5px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 18px;
 }
 
 .project-facts {
@@ -1330,11 +1602,13 @@ onMounted(load)
   }
 
   .form-grid,
-  .project-facts {
+  .project-facts,
+  .metric-grid {
     grid-template-columns: 1fr;
   }
 
-  .member-toolbar {
+  .member-toolbar,
+  .monitoring-toolbar {
     align-items: stretch;
     flex-direction: column;
   }

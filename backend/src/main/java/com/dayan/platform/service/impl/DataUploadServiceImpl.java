@@ -323,7 +323,10 @@ public class DataUploadServiceImpl implements DataUploadService {
     }
 
     private String datasetStatus(String dataType) {
-        return Set.of("BAG", "HDF5", "LEROBOT", "MEITUAN", "LUMOS", "ZC0TOUCH", "SENSEXPERIENCE")
+        return Set.of(
+                "BAG", "VIDEO", "AUDIO", "HDF5", "LEROBOT",
+                "MEITUAN", "LUMOS", "ZC0TOUCH", "SENSEXPERIENCE"
+        )
                 .contains(dataType) ? "PROCESSING" : "READY";
     }
 

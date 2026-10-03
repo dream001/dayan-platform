@@ -3,11 +3,15 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   assignUserRoles,
   changeCollectionTaskStatus,
+  createUsersBatch,
   createDataUploadSession,
+  deleteUser,
   getAuditLogs,
   getCollectionTasks,
   getDataUploadOptions,
   getDashboardStatistics,
+  getUserFilterOptions,
+  getUsers,
   grantRolePermissions,
   reorderMenus,
   uploadDataPart,
@@ -69,6 +73,92 @@ describe('management API contracts', () => {
     expect(requests).toEqual([
       { url: '/system/users/8/roles', body: { ids: [1, 3] } },
       { url: '/system/roles/3/permissions', body: { ids: [1000, 1111] } },
+    ])
+  })
+
+  it('deletes a user through the protected user endpoint', async () => {
+    http.defaults.adapter = async (config) => {
+      expect(config.url).toBe('/system/users/8')
+      expect(config.method).toBe('delete')
+      return apiResponse(config, null)
+    }
+
+    await expect(deleteUser(8)).resolves.toBeUndefined()
+  })
+
+  it('passes user role and project filters and supports batch creation', async () => {
+    const requests: Array<{ url?: string; method?: string; params?: unknown; body?: unknown }> = []
+    http.defaults.adapter = async (config) => {
+      requests.push({
+        url: config.url,
+        method: config.method,
+        params: config.params,
+        body: config.data ? JSON.parse(String(config.data)) : undefined,
+      })
+      return apiResponse(config, config.url === '/system/users/filter-options'
+        ? { projects: [] }
+        : config.url === '/system/users/batch'
+          ? []
+          : { page: 1, size: 20, total: 0, totalPages: 0, items: [] })
+    }
+
+    await getUsers({
+      page: 1,
+      size: 20,
+      keyword: 'alex',
+      roleCode: 'ANNOTATOR',
+      projectId: 9,
+    })
+    await getUserFilterOptions()
+    await createUsersBatch({
+      departmentId: null,
+      password: 'Batch-Password-2026',
+      enabled: true,
+      roleIds: [3],
+      users: [{
+        username: 'alex',
+        displayName: 'Alex',
+        email: '',
+        phone: '',
+      }],
+    })
+
+    expect(requests).toEqual([
+      {
+        url: '/system/users',
+        method: 'get',
+        params: {
+          page: 1,
+          size: 20,
+          keyword: 'alex',
+          roleCode: 'ANNOTATOR',
+          projectId: 9,
+        },
+        body: undefined,
+      },
+      {
+        url: '/system/users/filter-options',
+        method: 'get',
+        params: undefined,
+        body: undefined,
+      },
+      {
+        url: '/system/users/batch',
+        method: 'post',
+        params: undefined,
+        body: {
+          departmentId: null,
+          password: 'Batch-Password-2026',
+          enabled: true,
+          roleIds: [3],
+          users: [{
+            username: 'alex',
+            displayName: 'Alex',
+            email: '',
+            phone: '',
+          }],
+        },
+      },
     ])
   })
 

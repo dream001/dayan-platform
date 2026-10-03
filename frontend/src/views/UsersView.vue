@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Edit, Key, Plus, Refresh, UserFilled } from '@element-plus/icons-vue'
+import { Delete, DocumentAdd, Edit, Key, Plus, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -9,15 +9,25 @@ import {
   assignUserRoles,
   changeUserStatus,
   createUser,
+  createUsersBatch,
+  deleteUser,
   getDepartments,
   getRoles,
+  getUserFilterOptions,
   getUsers,
   resetUserPassword,
   updateUser,
 } from '@/services/admin'
 import { confirmAction, getErrorMessage, notifyError } from '@/services/feedback'
 import { useAuthStore } from '@/stores/auth'
-import type { DepartmentNode, RoleSummary, UserCreatePayload, UserSummary } from '@/types/admin'
+import type {
+  BatchUserEntry,
+  DepartmentNode,
+  RoleSummary,
+  UserCreatePayload,
+  UserProjectOption,
+  UserSummary,
+} from '@/types/admin'
 import { formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
@@ -27,6 +37,7 @@ const error = ref('')
 const users = ref<UserSummary[]>([])
 const departments = ref<DepartmentNode[]>([])
 const roles = ref<RoleSummary[]>([])
+const projects = ref<UserProjectOption[]>([])
 const total = ref(0)
 const query = reactive({
   page: 1,
@@ -34,6 +45,8 @@ const query = reactive({
   keyword: '',
   departmentId: undefined as number | undefined,
   enabled: undefined as boolean | undefined,
+  roleCode: undefined as string | undefined,
+  projectId: undefined as number | undefined,
 })
 const drawerOpen = ref(false)
 const drawerMode = ref<'create' | 'edit'>('create')
@@ -55,10 +68,38 @@ const selectedRoleIds = ref<number[]>([])
 const passwordDialogOpen = ref(false)
 const passwordUser = ref<UserSummary | null>(null)
 const newPassword = ref('')
+const batchDialogOpen = ref(false)
+const batchSaving = ref(false)
+const batchText = ref('')
+const batchForm = reactive({
+  departmentId: null as number | null,
+  password: '',
+  enabled: true,
+  roleIds: [] as number[],
+})
 
 const departmentProps = { label: 'name', children: 'children', value: 'id' }
 const canLoadDepartments = computed(() => auth.hasPermission('system:department:view'))
 const canLoadRoles = computed(() => auth.hasPermission('system:role:view'))
+const roleTabs = computed(() => [
+  { code: '', label: t('users.roleTabs.all') },
+  { code: 'VISITOR', label: t('users.roleTabs.visitor') },
+  { code: 'COLLECTOR', label: t('users.roleTabs.collector') },
+  { code: 'ANNOTATOR', label: t('users.roleTabs.annotator') },
+  { code: 'AUDITOR', label: t('users.roleTabs.auditor') },
+  { code: 'MANAGER', label: t('users.roleTabs.manager') },
+  { code: 'SUPER_ADMIN', label: t('users.roleTabs.administrator') },
+])
+const batchUsers = computed<BatchUserEntry[]>(() => batchText.value
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .map((line) => {
+    const [username = '', displayName = '', email = '', phone = ''] = line
+      .split(/[,\t]/)
+      .map((value) => value.trim())
+    return { username, displayName, email, phone }
+  }))
 
 function requestParams() {
   return {
@@ -67,6 +108,8 @@ function requestParams() {
     keyword: query.keyword.trim() || undefined,
     departmentId: query.departmentId,
     enabled: query.enabled,
+    roleCode: query.roleCode,
+    projectId: query.projectId,
   }
 }
 
@@ -96,7 +139,15 @@ async function loadOptions() {
       roles.value = value.items
     }).catch(() => undefined))
   }
+  tasks.push(getUserFilterOptions().then((value) => {
+    projects.value = value.projects
+  }).catch(() => undefined))
   await Promise.all(tasks)
+}
+
+function selectRole(code: string) {
+  query.roleCode = code || undefined
+  search()
 }
 
 function search() {
@@ -108,6 +159,8 @@ function resetFilters() {
   query.keyword = ''
   query.departmentId = undefined
   query.enabled = undefined
+  query.roleCode = undefined
+  query.projectId = undefined
   search()
 }
 
@@ -129,6 +182,53 @@ function openCreate() {
   resetForm()
   drawerMode.value = 'create'
   drawerOpen.value = true
+}
+
+function openBatchCreate() {
+  Object.assign(batchForm, {
+    departmentId: null,
+    password: '',
+    enabled: true,
+    roleIds: [],
+  })
+  batchText.value = ''
+  batchDialogOpen.value = true
+}
+
+async function saveBatchUsers() {
+  if (batchForm.password.length < 12) {
+    ElMessage.warning(t('users.passwordTooShort'))
+    return
+  }
+  if (!batchUsers.value.length) {
+    ElMessage.warning(t('users.batchRequired'))
+    return
+  }
+  const invalidRow = batchUsers.value.findIndex((user) => !user.username || !user.displayName)
+  if (invalidRow >= 0) {
+    ElMessage.warning(t('users.batchRowInvalid', { row: invalidRow + 1 }))
+    return
+  }
+  const usernames = batchUsers.value.map((user) => user.username.toLowerCase())
+  if (new Set(usernames).size !== usernames.length) {
+    ElMessage.warning(t('users.batchDuplicate'))
+    return
+  }
+
+  batchSaving.value = true
+  try {
+    const created = await createUsersBatch({
+      ...batchForm,
+      users: batchUsers.value,
+    })
+    ElMessage.success(t('users.batchCreated', { count: created.length }))
+    batchDialogOpen.value = false
+    await loadUsers()
+  } catch (reason) {
+    notifyError(reason, t('users.batchFailed'))
+  } finally {
+    batchSaving.value = false
+  }
 }
 
 function openEdit(user: UserSummary) {
@@ -244,6 +344,22 @@ async function savePassword() {
   }
 }
 
+async function removeUser(user: UserSummary) {
+  const confirmed = await confirmAction(
+    t('users.deleteConfirm', { name: user.displayName }),
+    t('users.deleteTitle'),
+    t('common.delete'),
+  )
+  if (!confirmed) return
+  try {
+    await deleteUser(user.id)
+    ElMessage.success(t('users.deleted'))
+    await loadUsers()
+  } catch (reason) {
+    notifyError(reason, t('users.deleteFailed'))
+  }
+}
+
 onMounted(() => {
   void Promise.all([loadUsers(), loadOptions()])
 })
@@ -255,21 +371,27 @@ onMounted(() => {
       :title="t('users.title')"
       :eyebrow="t('users.eyebrow')"
       :description="t('users.description')"
+    />
+
+    <nav
+      class="user-role-tabs"
+      :aria-label="t('users.roleFilter')"
     >
-      <template #actions>
-        <el-button
-          v-permission="'system:user:create'"
-          type="primary"
-          :icon="Plus"
-          @click="openCreate"
-        >
-          {{ t('users.createUser') }}
-        </el-button>
-      </template>
-    </PageHeader>
+      <button
+        v-for="tab in roleTabs"
+        :key="tab.code"
+        type="button"
+        class="user-role-tab"
+        :class="{ 'user-role-tab--active': (query.roleCode ?? '') === tab.code }"
+        :aria-pressed="(query.roleCode ?? '') === tab.code"
+        @click="selectRole(tab.code)"
+      >
+        {{ tab.label }}
+      </button>
+    </nav>
 
     <form
-      class="filter-bar"
+      class="filter-bar user-filter-bar"
       @submit.prevent="search"
     >
       <el-input
@@ -277,27 +399,17 @@ onMounted(() => {
         clearable
         :placeholder="t('users.keywordPlaceholder')"
       />
-      <el-tree-select
-        v-if="canLoadDepartments"
-        v-model="query.departmentId"
-        :data="departments"
-        :props="departmentProps"
-        check-strictly
-        clearable
-        :placeholder="t('users.allDepartments')"
-      />
       <el-select
-        v-model="query.enabled"
+        v-model="query.projectId"
+        filterable
         clearable
-        :placeholder="t('users.allStatus')"
+        :placeholder="t('users.projectFilter')"
       >
         <el-option
-          :label="t('users.enabled')"
-          :value="true"
-        />
-        <el-option
-          :label="t('users.disabled')"
-          :value="false"
+          v-for="project in projects"
+          :key="project.id"
+          :label="project.name"
+          :value="project.id"
         />
       </el-select>
       <el-button
@@ -309,14 +421,23 @@ onMounted(() => {
       <el-button @click="resetFilters">
         {{ t('users.reset') }}
       </el-button>
-      <el-tooltip :content="t('users.refreshList')">
+      <div class="user-filter-actions">
         <el-button
-          :icon="Refresh"
-          circle
-          :aria-label="t('users.refreshList')"
-          @click="loadUsers"
-        />
-      </el-tooltip>
+          v-permission="'system:user:create'"
+          type="primary"
+          :icon="Plus"
+          @click="openCreate"
+        >
+          {{ t('users.createUser') }}
+        </el-button>
+        <el-button
+          v-permission="'system:user:create'"
+          :icon="DocumentAdd"
+          @click="openBatchCreate"
+        >
+          {{ t('users.batchCreate') }}
+        </el-button>
+      </div>
     </form>
 
     <StatePanel
@@ -422,7 +543,7 @@ onMounted(() => {
           </el-table-column>
           <el-table-column
             :label="t('users.operation')"
-            width="142"
+            width="176"
             fixed="right"
           >
             <template #default="{ row }">
@@ -455,6 +576,20 @@ onMounted(() => {
                     text
                     :aria-label="t('users.resetPassword')"
                     @click="openPasswordDialog(row)"
+                  />
+                </el-tooltip>
+                <el-tooltip
+                  v-if="row.id !== auth.profile?.user.id"
+                  :content="t('users.deleteUser')"
+                >
+                  <el-button
+                    v-permission="'system:user:delete'"
+                    :icon="Delete"
+                    circle
+                    text
+                    type="danger"
+                    :aria-label="t('users.deleteUser')"
+                    @click="removeUser(row)"
                   />
                 </el-tooltip>
               </div>
@@ -587,6 +722,94 @@ onMounted(() => {
     </el-drawer>
 
     <el-dialog
+      v-model="batchDialogOpen"
+      :title="t('users.batchTitle')"
+      width="620px"
+      destroy-on-close
+    >
+      <el-form
+        class="dialog-form"
+        label-position="top"
+        @submit.prevent="saveBatchUsers"
+      >
+        <el-form-item
+          :label="t('users.batchUsers')"
+          required
+        >
+          <el-input
+            v-model="batchText"
+            type="textarea"
+            :rows="8"
+            :placeholder="t('users.batchPlaceholder')"
+          />
+          <small class="batch-hint">{{ t('users.batchHint') }}</small>
+        </el-form-item>
+        <div class="batch-grid">
+          <el-form-item
+            :label="t('users.initialPassword')"
+            required
+          >
+            <el-input
+              v-model="batchForm.password"
+              type="password"
+              show-password
+              minlength="12"
+              maxlength="72"
+              autocomplete="new-password"
+              :placeholder="t('users.minPassword')"
+            />
+          </el-form-item>
+          <el-form-item
+            v-if="canLoadDepartments"
+            :label="t('users.departmentField')"
+          >
+            <el-tree-select
+              v-model="batchForm.departmentId"
+              :data="departments"
+              :props="departmentProps"
+              check-strictly
+              clearable
+              style="width: 100%"
+            />
+          </el-form-item>
+        </div>
+        <el-form-item
+          v-if="canLoadRoles"
+          :label="t('users.initialRoles')"
+        >
+          <el-select
+            v-model="batchForm.roleIds"
+            multiple
+            style="width: 100%"
+          >
+            <el-option
+              v-for="role in roles"
+              :key="role.id"
+              :label="role.name"
+              :value="role.id"
+              :disabled="!role.enabled"
+            />
+          </el-select>
+        </el-form-item>
+        <el-checkbox v-model="batchForm.enabled">
+          {{ t('users.enableOnCreate') }}
+        </el-checkbox>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchDialogOpen = false">
+          {{ t('users.cancel') }}
+        </el-button>
+        <el-button
+          type="primary"
+          :loading="batchSaving"
+          @click="saveBatchUsers"
+        >
+          {{ t('users.batchSubmit', { count: batchUsers.length }) }}
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
       v-model="roleDialogOpen"
       :title="t('users.assignTitle')"
       width="440px"
@@ -661,6 +884,70 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.user-role-tabs {
+  display: flex;
+  min-height: 54px;
+  align-items: stretch;
+  gap: 22px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.user-role-tab {
+  position: relative;
+  min-width: 72px;
+  padding: 0 8px;
+  cursor: pointer;
+  border: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.user-role-tab::after {
+  position: absolute;
+  right: 6px;
+  bottom: -1px;
+  left: 6px;
+  height: 2px;
+  background: var(--color-accent);
+  content: '';
+  opacity: 0;
+}
+
+.user-role-tab:hover,
+.user-role-tab--active {
+  color: var(--color-accent);
+}
+
+.user-role-tab--active {
+  font-weight: 680;
+}
+
+.user-role-tab--active::after {
+  opacity: 1;
+}
+
+.user-filter-bar {
+  padding-block: 18px;
+}
+
+.user-filter-bar :deep(.el-input) {
+  width: 280px;
+}
+
+.user-filter-bar :deep(.el-select) {
+  width: 220px;
+}
+
+.user-filter-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .user-cell {
   display: flex;
   flex-direction: column;
@@ -694,5 +981,42 @@ onMounted(() => {
   max-height: 320px;
   gap: 10px;
   overflow: auto;
+}
+
+.batch-hint {
+  margin-top: 7px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.batch-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 700px) {
+  .user-role-tabs {
+    gap: 8px;
+  }
+
+  .user-role-tab {
+    min-width: auto;
+    padding-inline: 12px;
+  }
+
+  .batch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-filter-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .user-filter-actions :deep(.el-button) {
+    flex: 1;
+  }
 }
 </style>

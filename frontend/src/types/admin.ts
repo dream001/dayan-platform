@@ -47,6 +47,8 @@ export interface UserQuery {
   keyword?: string
   departmentId?: number
   enabled?: boolean
+  roleCode?: string
+  projectId?: number
 }
 
 export interface UserCreatePayload {
@@ -64,6 +66,30 @@ export type UserUpdatePayload = Pick<
   UserCreatePayload,
   'departmentId' | 'displayName' | 'email' | 'phone'
 >
+
+export interface BatchUserEntry {
+  username: string
+  displayName: string
+  email: string
+  phone: string
+}
+
+export interface BatchUserCreatePayload {
+  departmentId: number | null
+  password: string
+  enabled: boolean
+  roleIds: number[]
+  users: BatchUserEntry[]
+}
+
+export interface UserProjectOption {
+  id: number
+  name: string
+}
+
+export interface UserFilterOptions {
+  projects: UserProjectOption[]
+}
 
 export interface RoleSummary {
   id: number

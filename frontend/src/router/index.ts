@@ -62,6 +62,27 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'data/upload',
+        name: 'data-upload',
+        component: () => import('@/views/DataUploadView.vue'),
+        meta: {
+          titleKey: 'menu.data:upload:view',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:upload:view',
+        },
+      },
+      {
+        path: 'data/quality-check',
+        alias: ['/qc/rules', '/qc/logs'],
+        name: 'quality-control',
+        component: () => import('@/views/QualityControlView.vue'),
+        meta: {
+          titleKey: 'qualityControl.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:qc:view',
+        },
+      },
+      {
         path: 'data/annotate-tasks',
         alias: '/tasks',
         name: 'annotation-tasks',
@@ -70,6 +91,16 @@ const routes: RouteRecordRaw[] = [
           titleKey: 'annotationTasks.title',
           eyebrowKey: 'shell.eyebrows.module',
           permission: 'data:annotate:task:view',
+        },
+      },
+      {
+        path: 'data/dictionary',
+        name: 'dictionaries',
+        component: () => import('@/views/DictionariesView.vue'),
+        meta: {
+          titleKey: 'dictionaries.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:dict:view',
         },
       },
       {
@@ -123,6 +154,35 @@ const routes: RouteRecordRaw[] = [
           titleKey: 'collections.title',
           eyebrowKey: 'shell.eyebrows.module',
           permission: 'data:collect:task:view',
+        },
+      },
+      {
+        path: 'data/charts',
+        alias: '/charts',
+        redirect: (to) => ({
+          path: '/data/charts/subtree',
+          query: to.query,
+        }),
+      },
+      {
+        path: 'data/charts/:chart',
+        alias: '/charts/:chart',
+        name: 'analysis-charts',
+        component: () => import('@/views/ChartsView.vue'),
+        meta: {
+          titleKey: 'charts.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:chart:view',
+        },
+      },
+      {
+        path: 'data/export',
+        name: 'data-export',
+        component: () => import('@/views/DataExportView.vue'),
+        meta: {
+          titleKey: 'dataExport.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:export:view',
         },
       },
       {
@@ -200,6 +260,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'basic/robots',
+        name: 'robots',
+        component: () => import('@/views/RobotsView.vue'),
+        meta: {
+          titleKey: 'robots.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:robot:view',
+        },
+      },
+      {
         path: 'basic/storage',
         name: 'storage-management',
         component: () => import('@/views/StorageManagementView.vue'),
@@ -217,6 +287,16 @@ const routes: RouteRecordRaw[] = [
           titleKey: 'aiModels.title',
           eyebrowKey: 'shell.eyebrows.module',
           permission: 'basic:model:view',
+        },
+      },
+      {
+        path: 'basic/agents',
+        name: 'ai-agents',
+        component: () => import('@/views/AiAgentsView.vue'),
+        meta: {
+          titleKey: 'aiAgents.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:agent:view',
         },
       },
     ],

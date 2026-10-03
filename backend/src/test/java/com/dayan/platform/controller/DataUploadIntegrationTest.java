@@ -116,6 +116,30 @@ class DataUploadIntegrationTest extends PostgreSqlIntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(datasetId));
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM data_dataset", Long.class)).isOne();
+
+        Long secondProjectId = jdbcTemplate.queryForObject("""
+                INSERT INTO basic_project
+                    (code, name, project_type, access_level, status, storage_provider,
+                     storage_quota_bytes, quality_threshold, review_mode,
+                     notification_enabled, owner_id)
+                SELECT 'UPLOAD_TEST_2', '上传测试项目二', 'TEAM', 'PRIVATE', 'ACTIVE', 'MINIO',
+                       1073741824, 90, 'SINGLE_REVIEW', TRUE, id
+                FROM sys_user
+                WHERE username = 'integration-admin'
+                RETURNING id
+                """, Long.class);
+        MvcResult crossProject = mockMvc.perform(multipart(BASE + "/direct")
+                        .file(file)
+                        .param("projectId", String.valueOf(secondProjectId))
+                        .param("storageKey", "minio-default")
+                        .param("dataType", "MCAP")
+                        .param("sourceFingerprint", "same-source")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value(secondProjectId))
+                .andReturn();
+        assertThat(data(crossProject).path("id").asLong()).isNotEqualTo(datasetId);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM data_dataset", Long.class)).isEqualTo(2);
     }
 
     @Test

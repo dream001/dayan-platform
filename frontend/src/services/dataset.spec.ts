@@ -78,7 +78,15 @@ describe('dataset API contracts', () => {
   it('uses the batch mutation endpoints with the documented routes', async () => {
     const requests: Array<{ method?: string; url?: string; data?: unknown }> = []
     http.defaults.adapter = async (config) => {
-      requests.push({ method: config.method, url: config.url, data: config.data })
+      const request = { method: config.method, url: config.url } as {
+        method?: string
+        url?: string
+        data?: unknown
+      }
+      if (config.data !== undefined) {
+        request.data = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+      }
+      requests.push(request)
       return apiResponse(config, [])
     }
 

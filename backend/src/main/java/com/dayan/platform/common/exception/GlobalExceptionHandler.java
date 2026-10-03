@@ -65,7 +65,7 @@ public class GlobalExceptionHandler {
                         LinkedHashMap::new,
                         Collectors.mapping(DefaultMessageSourceResolvable::getDefaultMessage, Collectors.toList())
                 ));
-        return invalidArgument("Validation failed", fieldErrors);
+        return invalidArgument(validationMessage(fieldErrors), fieldErrors);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -78,7 +78,7 @@ public class GlobalExceptionHandler {
                         LinkedHashMap::new,
                         Collectors.mapping(ConstraintViolation::getMessage, Collectors.toList())
                 ));
-        return invalidArgument("Validation failed", fieldErrors);
+        return invalidArgument(validationMessage(fieldErrors), fieldErrors);
     }
 
     @ExceptionHandler({
@@ -152,5 +152,12 @@ public class GlobalExceptionHandler {
         String path = violation.getPropertyPath().toString();
         int separator = path.lastIndexOf('.');
         return separator >= 0 ? path.substring(separator + 1) : path;
+    }
+
+    private String validationMessage(Map<String, List<String>> fieldErrors) {
+        return fieldErrors.entrySet().stream()
+                .flatMap(entry -> entry.getValue().stream()
+                        .map(message -> entry.getKey() + ": " + message))
+                .collect(Collectors.joining("; "));
     }
 }

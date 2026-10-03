@@ -12,6 +12,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatePanel from '@/components/StatePanel.vue'
 import {
@@ -37,6 +38,10 @@ type QueueStatus = 'pending' | 'uploading' | 'paused' | 'success' | 'error' | 'c
 interface UploadItem {
   id: string
   file: File
+  projectId: number
+  storageKey: string
+  dataType: DataUploadType
+  robotType?: string
   status: QueueStatus
   progress: number
   loaded: number
@@ -63,9 +68,14 @@ const modes: Array<{
   { type: 'IMAGE', label: '图片文件', hint: 'JPG、PNG 原文件入库', accept: '.jpg,.jpeg,.png', icon: Picture },
   { type: 'HDF5', label: 'HDF5 文件', hint: '需指定机器人类型', accept: '.h5,.hdf5', icon: Document },
   { type: 'LEROBOT', label: 'LeRobot 数据', hint: '选择预打包 tar 文件', accept: '.tar', icon: FolderOpened },
+  { type: 'MEITUAN', label: '美团数据', hint: '选择预打包 tar 文件', accept: '.tar', icon: FolderOpened },
+  { type: 'LUMOS', label: 'Lumos FastUMI', hint: '选择预打包 lumos 文件', accept: '.lumos', icon: FolderOpened },
+  { type: 'ZC0TOUCH', label: 'zc0touch 数据', hint: '选择预打包 zc0touch 文件', accept: '.zc0touch', icon: FolderOpened },
+  { type: 'SENSEXPERIENCE', label: 'SenseXperience', hint: '选择预打包 tar 文件', accept: '.tar', icon: FolderOpened },
   { type: 'BVH', label: 'BVH 文件', hint: '动作可视化数据', accept: '.bvh', icon: Document },
 ]
 
+const router = useRouter()
 const loading = ref(true)
 const error = ref('')
 const options = ref<DataUploadOptions | null>(null)
@@ -127,6 +137,10 @@ function enqueue(files: FileList | File[]) {
     const item: UploadItem = {
       id: crypto.randomUUID(),
       file,
+      projectId: projectId.value!,
+      storageKey: storageKey.value,
+      dataType: dataType.value,
+      robotType: robotType.value.trim() || undefined,
       status: 'pending',
       progress: 0,
       loaded: 0,
@@ -159,7 +173,7 @@ function updateProgress(item: UploadItem, loaded: number) {
 }
 
 async function start(item: UploadItem) {
-  if (!options.value || !projectId.value || !storageKey.value) return
+  if (!options.value) return
   item.status = 'uploading'
   item.error = ''
   item.controller = new AbortController()
@@ -169,11 +183,11 @@ async function start(item: UploadItem) {
     if (item.file.size <= options.value.multipartThreshold) {
       item.dataset = await uploadDataDirect(
         {
-          projectId: projectId.value,
-          storageKey: storageKey.value,
-          dataType: dataType.value,
+          projectId: item.projectId,
+          storageKey: item.storageKey,
+          dataType: item.dataType,
           sourceFingerprint,
-          robotType: robotType.value.trim() || undefined,
+          robotType: item.robotType,
         },
         item.file,
         (loaded) => updateProgress(item, loaded),
@@ -182,6 +196,7 @@ async function start(item: UploadItem) {
     } else {
       await uploadMultipart(item, sourceFingerprint)
     }
+    if (item.status !== 'uploading' || !item.dataset) return
     updateProgress(item, item.file.size)
     item.status = 'success'
   } catch (reason) {
@@ -194,18 +209,18 @@ async function start(item: UploadItem) {
 }
 
 async function uploadMultipart(item: UploadItem, sourceFingerprint: string) {
-  if (!options.value || !projectId.value) return
+  if (!options.value) return
   let session = item.sessionId
     ? await resumeDataUpload(item.sessionId)
     : await createDataUploadSession({
-        projectId: projectId.value,
-        storageKey: storageKey.value,
-        dataType: dataType.value,
+        projectId: item.projectId,
+        storageKey: item.storageKey,
+        dataType: item.dataType,
         fileName: item.file.name,
         contentType: item.file.type || 'application/octet-stream',
         totalSize: item.file.size,
         sourceFingerprint,
-        robotType: robotType.value.trim() || undefined,
+        robotType: item.robotType,
       })
   if (session.existingDataset) {
     item.dataset = session.existingDataset
@@ -255,6 +270,14 @@ function retry(item: UploadItem) {
   item.loaded = 0
   item.progress = 0
   void start(item)
+}
+
+function viewDataset(item: UploadItem) {
+  if (!item.dataset) return
+  void router.push({
+    name: 'dataset',
+    query: { projectIds: String(item.dataset.projectId), name: item.dataset.name },
+  })
 }
 
 function statusText(item: UploadItem) {
@@ -419,10 +442,19 @@ onBeforeUnmount(() => {
                 :status="item.status === 'success' ? 'success' : item.status === 'error' ? 'exception' : undefined"
               />
               <span v-if="item.status === 'uploading'">
-                {{ formatBytes(item.speed) }}/s · 剩余 {{ formatDuration(item.eta) }}
+                {{ formatBytes(item.loaded) }} / {{ formatBytes(item.file.size) }}
+                · {{ formatBytes(item.speed) }}/s · 剩余 {{ formatDuration(item.eta) }}
               </span>
             </div>
             <div class="queue-actions">
+              <el-button
+                v-if="item.status === 'success'"
+                type="primary"
+                plain
+                @click="viewDataset(item)"
+              >
+                查看数据集
+              </el-button>
               <el-tooltip v-if="item.status === 'uploading' && item.sessionId" content="暂停">
                 <el-button :icon="VideoPause" circle aria-label="暂停上传" @click="pause(item)" />
               </el-tooltip>

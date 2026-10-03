@@ -23,8 +23,10 @@ import type {
   RolePayload,
   RoleSummary,
   StoredFile,
+  BatchUserCreatePayload,
   UploadedDataset,
   UserCreatePayload,
+  UserFilterOptions,
   UserQuery,
   UserSummary,
   UserUpdatePayload,
@@ -59,12 +61,20 @@ export async function getUsers(params: UserQuery) {
   return data(await http.get<ApiResponse<PageResponse<UserSummary>>>('/system/users', { params }))
 }
 
+export async function getUserFilterOptions() {
+  return data(await http.get<ApiResponse<UserFilterOptions>>('/system/users/filter-options'))
+}
+
 export async function getUser(id: number) {
   return data(await http.get<ApiResponse<UserSummary>>(`/system/users/${id}`))
 }
 
 export async function createUser(payload: UserCreatePayload) {
   return data(await http.post<ApiResponse<UserSummary>>('/system/users', payload))
+}
+
+export async function createUsersBatch(payload: BatchUserCreatePayload) {
+  return data(await http.post<ApiResponse<UserSummary[]>>('/system/users/batch', payload))
 }
 
 export async function updateUser(id: number, payload: UserUpdatePayload) {
@@ -81,6 +91,10 @@ export async function resetUserPassword(id: number, newPassword: string) {
 
 export async function assignUserRoles(id: number, ids: number[]) {
   await http.put<ApiResponse<null>>(`/system/users/${id}/roles`, { ids })
+}
+
+export async function deleteUser(id: number) {
+  await http.delete<ApiResponse<null>>(`/system/users/${id}`)
 }
 
 export async function getRoles(params: RoleQuery) {

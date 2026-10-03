@@ -2,6 +2,7 @@ package com.dayan.platform.repository.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.dayan.platform.model.UserAccount;
+import com.dayan.platform.repository.query.OptionRow;
 import com.dayan.platform.repository.query.UserSummaryRow;
 import java.util.Collection;
 import java.util.List;
@@ -45,6 +46,37 @@ public interface UserAccountMapper extends BaseMapper<UserAccount> {
               </if>
               <if test="departmentId != null">AND u.department_id = #{departmentId}</if>
               <if test="enabled != null">AND u.enabled = #{enabled}</if>
+              <if test="roleCode != null and roleCode != ''">
+                <choose>
+                  <when test='"VISITOR".equals(roleCode)'>
+                    AND NOT EXISTS (
+                      SELECT 1 FROM sys_user_role visitor_role
+                      WHERE visitor_role.user_id = u.id
+                    )
+                  </when>
+                  <otherwise>
+                    AND EXISTS (
+                      SELECT 1
+                      FROM sys_user_role filter_user_role
+                      JOIN sys_role filter_role ON filter_role.id = filter_user_role.role_id
+                      WHERE filter_user_role.user_id = u.id
+                        AND filter_role.code = #{roleCode}
+                    )
+                  </otherwise>
+                </choose>
+              </if>
+              <if test="projectId != null">
+                AND EXISTS (
+                  SELECT 1
+                  FROM basic_project_member project_member
+                  WHERE project_member.user_id = u.id
+                    AND project_member.project_id = #{projectId}
+                    AND (project_member.valid_from IS NULL
+                         OR project_member.valid_from &lt;= CURRENT_TIMESTAMP)
+                    AND (project_member.valid_until IS NULL
+                         OR project_member.valid_until > CURRENT_TIMESTAMP)
+                )
+              </if>
             </where>
             GROUP BY u.id, d.name
             ORDER BY u.created_at DESC, u.id DESC
@@ -55,6 +87,8 @@ public interface UserAccountMapper extends BaseMapper<UserAccount> {
             @Param("keyword") String keyword,
             @Param("departmentId") Long departmentId,
             @Param("enabled") Boolean enabled,
+            @Param("roleCode") String roleCode,
+            @Param("projectId") Long projectId,
             @Param("offset") long offset,
             @Param("limit") int limit
     );
@@ -71,14 +105,55 @@ public interface UserAccountMapper extends BaseMapper<UserAccount> {
               </if>
               <if test="departmentId != null">AND u.department_id = #{departmentId}</if>
               <if test="enabled != null">AND u.enabled = #{enabled}</if>
+              <if test="roleCode != null and roleCode != ''">
+                <choose>
+                  <when test='"VISITOR".equals(roleCode)'>
+                    AND NOT EXISTS (
+                      SELECT 1 FROM sys_user_role visitor_role
+                      WHERE visitor_role.user_id = u.id
+                    )
+                  </when>
+                  <otherwise>
+                    AND EXISTS (
+                      SELECT 1
+                      FROM sys_user_role filter_user_role
+                      JOIN sys_role filter_role ON filter_role.id = filter_user_role.role_id
+                      WHERE filter_user_role.user_id = u.id
+                        AND filter_role.code = #{roleCode}
+                    )
+                  </otherwise>
+                </choose>
+              </if>
+              <if test="projectId != null">
+                AND EXISTS (
+                  SELECT 1
+                  FROM basic_project_member project_member
+                  WHERE project_member.user_id = u.id
+                    AND project_member.project_id = #{projectId}
+                    AND (project_member.valid_from IS NULL
+                         OR project_member.valid_from &lt;= CURRENT_TIMESTAMP)
+                    AND (project_member.valid_until IS NULL
+                         OR project_member.valid_until > CURRENT_TIMESTAMP)
+                )
+              </if>
             </where>
             </script>
             """)
     long countSummaries(
             @Param("keyword") String keyword,
             @Param("departmentId") Long departmentId,
-            @Param("enabled") Boolean enabled
+            @Param("enabled") Boolean enabled,
+            @Param("roleCode") String roleCode,
+            @Param("projectId") Long projectId
     );
+
+    @Select("""
+            SELECT id, name
+            FROM basic_project
+            WHERE status <> 'ARCHIVED'
+            ORDER BY name, id
+            """)
+    List<OptionRow> selectProjectOptions();
 
     @Select("""
             SELECT u.id, u.department_id, d.name AS department_name, u.username,

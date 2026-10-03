@@ -80,10 +80,11 @@ public class DataUploadRepository {
                 FROM data_dataset d
                 JOIN file_metadata f ON f.id = d.file_id
                 WHERE d.deleted = FALSE
-                  AND (d.source_fingerprint = ? OR (d.project_id = ? AND lower(d.name) = lower(?)))
+                  AND d.project_id = ?
+                  AND (d.source_fingerprint = ? OR lower(d.name) = lower(?))
                 ORDER BY d.id
                 LIMIT 1
-                """, this::mapDataset, fingerprint, projectId, name);
+                """, this::mapDataset, projectId, fingerprint, name);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 

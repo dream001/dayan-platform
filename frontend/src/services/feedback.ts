@@ -5,9 +5,19 @@ import type { ApiResponse } from '@/types/api'
 
 const t = i18n.global.t
 
+function validationDetails(data: unknown) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return ''
+  return Object.entries(data)
+    .flatMap(([field, messages]) => Array.isArray(messages)
+      ? messages.map((message) => `${field}: ${String(message)}`)
+      : [])
+    .join('; ')
+}
+
 export function getErrorMessage(error: unknown, fallback: string = t('common.operationIncomplete')) {
   if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-    return error.response?.data?.message || error.message || fallback
+    const response = error.response?.data
+    return validationDetails(response?.data) || response?.message || error.message || fallback
   }
   if (error instanceof Error && error.message) return error.message
   return fallback

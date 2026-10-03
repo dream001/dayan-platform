@@ -38,7 +38,23 @@ public final class ProjectViews {
             boolean notificationEnabled,
             long ownerId,
             String ownerName,
-            OffsetDateTime createdAt
+            OffsetDateTime createdAt,
+            ProjectMetrics metrics
+    ) {
+    }
+
+    public record ProjectMetrics(
+            long datasetCount,
+            long videoCount,
+            long audioCount,
+            long mcapCount,
+            long storageUsedBytes,
+            long annotationTaskCount,
+            long collectionTaskCount,
+            long completedTaskCount,
+            BigDecimal taskCompletionRate,
+            BigDecimal qualityRate,
+            long activeMemberCount
     ) {
     }
 
