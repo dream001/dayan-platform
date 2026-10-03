@@ -27,7 +27,7 @@ class DatabaseMigrationIntegrationTest extends PostgreSqlIntegrationTestSupport 
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(Arrays.stream(flyway.info().applied()).map(MigrationInfo::getVersion))
                 .extracting(Object::toString)
-                .contains("1", "2", "3", "4", "5", "6", "7", "8", "19", "20", "21");
+                .contains("1", "2", "3", "4", "5", "6", "7", "8", "19", "20", "21", "33", "39", "41", "42");
 
         JdbcTemplate jdbc = jdbcTemplate();
         assertThat(jdbc.queryForObject(
@@ -92,17 +92,14 @@ class DatabaseMigrationIntegrationTest extends PostgreSqlIntegrationTestSupport 
                 "basic:workflow:view",
                 "basic:model:view",
                 "basic:agent:view",
-                "basic:operations:view"
+                "basic:mqtt:view",
+                "basic:operations:view",
+                "audit:log:view"
         );
         assertThat(jdbc.queryForObject(
-                """
-                SELECT basic.sort_order > audit.sort_order
-                FROM sys_menu_permission basic
-                JOIN sys_menu_permission audit ON audit.code = 'audit:log:view'
-                WHERE basic.code = 'basic:view'
-                """,
-                Boolean.class
-        )).isTrue();
+                "SELECT name FROM sys_menu_permission WHERE code = 'basic:view'",
+                String.class
+        )).isEqualTo("全局配置");
         assertThat(jdbc.queryForObject(
                 """
                 SELECT count(*)
@@ -111,6 +108,22 @@ class DatabaseMigrationIntegrationTest extends PostgreSqlIntegrationTestSupport 
                 JOIN sys_menu_permission p ON p.id = rp.permission_id
                 WHERE r.code = 'MANAGER'
                   AND p.code = 'basic:project:view'
+                """,
+                Integer.class
+        )).isOne();
+        assertThat(jdbc.queryForObject(
+                "SELECT visible FROM sys_menu_permission WHERE code = 'file:view'",
+                Boolean.class
+        )).isFalse();
+        assertThat(jdbc.queryForObject(
+                """
+                SELECT count(*)
+                FROM sys_role_permission rp
+                JOIN sys_role r ON r.id = rp.role_id
+                JOIN sys_menu_permission p ON p.id = rp.permission_id
+                WHERE r.code = 'SUPER_ADMIN'
+                  AND p.code = 'file:upload'
+                  AND p.enabled = TRUE
                 """,
                 Integer.class
         )).isOne();

@@ -7,13 +7,15 @@ import {
   Plus,
   Refresh,
   Search,
+  Upload,
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatePanel from '@/components/StatePanel.vue'
+import { deleteFile, getFilePreview, uploadFile } from '@/services/admin'
 import { confirmAction, getErrorMessage, notifyError } from '@/services/feedback'
 import { createRobot, deleteRobot, getRobots, updateRobot } from '@/services/robots'
 import { useAuthStore } from '@/stores/auth'
@@ -40,8 +42,6 @@ const mappingOptions: ActionMappingSupport[] = [
   'COMING_SOON',
   'UNSUPPORTED',
 ]
-const defaultIconUrl = 'https://copilot-cn.bytedance.net/api/ide/v1/text_to_image?prompt=clean%20studio%20product%20photo%20of%20a%20modern%20robot%2C%20white%20background%2C%20realistic&image_size=square'
-
 const { locale, t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
@@ -54,10 +54,15 @@ const editorOpen = ref(false)
 const editorMode = ref<'create' | 'edit'>('create')
 const editingId = ref<number | null>(null)
 const saving = ref(false)
+const iconInput = ref<HTMLInputElement>()
+const iconFile = ref<File>()
+const iconPreview = ref('')
+const uploadProgress = ref(0)
 const brokenImages = ref<Set<number>>(new Set())
 const form = reactive<RobotPayload>({
   name: '',
-  iconUrl: defaultIconUrl,
+  iconUrl: '',
+  iconFileId: null,
   titleZh: '',
   titleEn: '',
   robotType: 'OTHER',
@@ -103,9 +108,11 @@ function displayName(robot: Robot) {
 }
 
 function resetForm() {
+  releaseLocalPreview()
   Object.assign(form, {
     name: '',
-    iconUrl: defaultIconUrl,
+    iconUrl: '',
+    iconFileId: null,
     titleZh: '',
     titleEn: '',
     robotType: 'OTHER',
@@ -114,6 +121,9 @@ function resetForm() {
     company: '',
     introductionUrl: '',
   })
+  iconFile.value = undefined
+  iconPreview.value = ''
+  uploadProgress.value = 0
   editingId.value = null
 }
 
@@ -124,11 +134,15 @@ function openCreate() {
 }
 
 function openEdit(robot: Robot) {
+  releaseLocalPreview()
+  iconFile.value = undefined
+  uploadProgress.value = 0
   editorMode.value = 'edit'
   editingId.value = robot.id
   Object.assign(form, {
     name: robot.name,
     iconUrl: robot.iconUrl,
+    iconFileId: robot.iconFileId,
     titleZh: robot.titleZh ?? '',
     titleEn: robot.titleEn ?? '',
     robotType: robot.robotType,
@@ -137,26 +151,68 @@ function openEdit(robot: Robot) {
     company: robot.company ?? '',
     introductionUrl: robot.introductionUrl ?? '',
   })
+  iconPreview.value = robot.iconUrl
   editorOpen.value = true
 }
 
+function chooseIcon() {
+  iconInput.value?.click()
+}
+
+function selectIcon(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
+    ElMessage.warning(t('robots.iconType'))
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning(t('robots.iconSize'))
+    return
+  }
+  releaseLocalPreview()
+  iconFile.value = file
+  iconPreview.value = URL.createObjectURL(file)
+  uploadProgress.value = 0
+}
+
+function releaseLocalPreview() {
+  if (iconPreview.value.startsWith('blob:')) {
+    URL.revokeObjectURL(iconPreview.value)
+  }
+}
+
 async function save() {
-  if (!form.name.trim() || !form.iconUrl.trim()) {
+  if (!form.name.trim() || (!iconFile.value && !form.iconFileId && !form.iconUrl.trim())) {
     ElMessage.warning(t('robots.validation'))
     return
   }
   saving.value = true
-  const payload: RobotPayload = {
-    ...form,
-    name: form.name.trim(),
-    iconUrl: form.iconUrl.trim(),
-    titleZh: form.titleZh.trim(),
-    titleEn: form.titleEn.trim(),
-    description: form.description.trim(),
-    company: form.company.trim(),
-    introductionUrl: form.introductionUrl.trim(),
-  }
+  let uploadedFileId: number | null = null
   try {
+    let iconUrl = form.iconUrl.trim()
+    let iconFileId = form.iconFileId
+    if (iconFile.value) {
+      const uploaded = await uploadFile(iconFile.value, (value) => {
+        uploadProgress.value = value
+      })
+      uploadedFileId = uploaded.id
+      iconFileId = uploaded.id
+      iconUrl = (await getFilePreview(uploaded.id)).url
+    }
+    const payload: RobotPayload = {
+      ...form,
+      name: form.name.trim(),
+      iconUrl,
+      iconFileId,
+      titleZh: form.titleZh.trim(),
+      titleEn: form.titleEn.trim(),
+      description: form.description.trim(),
+      company: form.company.trim(),
+      introductionUrl: form.introductionUrl.trim(),
+    }
     if (editorMode.value === 'create') {
       await createRobot(payload)
       ElMessage.success(t('robots.created'))
@@ -165,8 +221,17 @@ async function save() {
       ElMessage.success(t('robots.updated'))
     }
     editorOpen.value = false
+    releaseLocalPreview()
+    iconFile.value = undefined
     await load()
   } catch (reason) {
+    if (uploadedFileId != null) {
+      try {
+        await deleteFile(uploadedFileId)
+      } catch {
+        // The file service records recoverable deletion failures.
+      }
+    }
     notifyError(reason, t('robots.saveFailed'))
   } finally {
     saving.value = false
@@ -198,6 +263,7 @@ function markImageBroken(id: number) {
 }
 
 onMounted(load)
+onBeforeUnmount(releaseLocalPreview)
 </script>
 
 <template>
@@ -408,9 +474,38 @@ onMounted(load)
             :label="t('robots.fields.icon')"
             required
           >
-            <el-input
-              v-model="form.iconUrl"
-              maxlength="1000"
+            <input
+              ref="iconInput"
+              class="robot-icon-input"
+              type="file"
+              accept="image/jpeg,image/png,image/gif"
+              @change="selectIcon"
+            >
+            <button
+              type="button"
+              class="robot-icon-upload"
+              @click="chooseIcon"
+            >
+              <img
+                v-if="iconPreview"
+                :src="iconPreview"
+                :alt="t('robots.fields.icon')"
+              >
+              <span v-else>
+                <el-icon><Upload /></el-icon>
+                <strong>{{ t('robots.chooseIcon') }}</strong>
+                <small>{{ t('robots.iconHint') }}</small>
+              </span>
+              <em v-if="iconPreview">
+                <el-icon><Upload /></el-icon>
+                {{ t('robots.replaceIcon') }}
+              </em>
+            </button>
+            <el-progress
+              v-if="saving && uploadProgress > 0 && uploadProgress < 100"
+              :percentage="uploadProgress"
+              :stroke-width="4"
+              :show-text="false"
             />
           </el-form-item>
           <el-form-item :label="t('robots.fields.titleZh')">
@@ -693,6 +788,78 @@ onMounted(load)
 
 .robot-form .wide {
   grid-column: 1 / -1;
+}
+
+.robot-icon-input {
+  display: none;
+}
+
+.robot-icon-upload {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 188px;
+  padding: 0;
+  overflow: hidden;
+  place-items: center;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  background: #f7f9f9;
+  cursor: pointer;
+}
+
+.robot-icon-upload:hover {
+  border-color: var(--color-accent);
+  background: #f1f8f8;
+}
+
+.robot-icon-upload > span {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.robot-icon-upload > span .el-icon {
+  color: var(--color-accent);
+  font-size: 28px;
+}
+
+.robot-icon-upload strong {
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+
+.robot-icon-upload small {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.robot-icon-upload img {
+  width: 100%;
+  height: 188px;
+  object-fit: contain;
+  background: #eef2f3;
+}
+
+.robot-icon-upload em {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border-radius: 4px;
+  color: #fff;
+  background: rgb(26 42 48 / 78%);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.robot-icon-upload + .el-progress {
+  width: 100%;
+  margin-top: 8px;
 }
 
 .robot-form :deep(.el-select) {

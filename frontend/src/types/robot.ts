@@ -13,6 +13,7 @@ export interface Robot {
   id: number
   name: string
   iconUrl: string
+  iconFileId: number | null
   titleZh: string | null
   titleEn: string | null
   robotType: RobotType
@@ -29,6 +30,7 @@ export interface Robot {
 export interface RobotPayload {
   name: string
   iconUrl: string
+  iconFileId: number | null
   titleZh: string
   titleEn: string
   robotType: RobotType

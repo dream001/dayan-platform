@@ -64,6 +64,8 @@ class AiModelIntegrationTest extends PostgreSqlIntegrationTestSupport {
                         .content(modelJson("doubao-seed-1-6", "access-value", "secret-value")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.manufacturer").value("豆包"))
+                .andExpect(jsonPath("$.data.modelType").value("VIDEO"))
+                .andExpect(jsonPath("$.data.accessAddress").value("http://127.0.0.1:9876"))
                 .andExpect(jsonPath("$.data.accessKeyConfigured").value(true))
                 .andExpect(jsonPath("$.data.secretKeyConfigured").value(true))
                 .andExpect(jsonPath("$.data.accessKey").doesNotExist())
@@ -95,6 +97,17 @@ class AiModelIntegrationTest extends PostgreSqlIntegrationTestSupport {
                         "Connection failed: modelUrl must not resolve to a private or local address"
                 ));
 
+        mockMvc.perform(post(MODELS + "/" + modelId + "/debug")
+                        .header("Authorization", bearer(adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"input\":\"hello model\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.success").value(false))
+                .andExpect(jsonPath("$.data.statusCode").value(0))
+                .andExpect(jsonPath("$.data.message").value(
+                        "Debug request failed: modelUrl must not resolve to a private or local address"
+                ));
+
         mockMvc.perform(patch(MODELS + "/" + modelId + "/status")
                         .header("Authorization", bearer(adminToken))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -119,7 +132,7 @@ class AiModelIntegrationTest extends PostgreSqlIntegrationTestSupport {
                   "name": "%s",
                   "accessAddress": "https://ark.cn-beijing.volces.com",
                   "modelUrl": "http://127.0.0.1:9876/v1/chat/completions",
-                  "modelType": "CHAT",
+                  "modelType": "VIDEO",
                   "accessKey": "%s",
                   "secretKey": "%s",
                   "enabled": true

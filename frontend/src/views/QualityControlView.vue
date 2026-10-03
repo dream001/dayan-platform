@@ -28,6 +28,7 @@ import { confirmAction, getErrorMessage, notifyError } from '@/services/feedback
 import { useAuthStore } from '@/stores/auth'
 import type {
   QualityAssertion,
+  QualityDataType,
   QualityDatasetOption,
   QualityExecution,
   QualityExecutionStatus,
@@ -38,7 +39,27 @@ import type {
 } from '@/types/quality-control'
 import { formatDateTime } from '@/utils/format'
 
+const dataTypes: QualityDataType[] = [
+  'MCAP',
+  'BAG',
+  'VIDEO',
+  'AUDIO',
+  'IMAGE',
+  'HDF5',
+  'LEROBOT',
+  'MEITUAN',
+  'LUMOS',
+  'ZC0TOUCH',
+  'SENSEXPERIENCE',
+  'BVH',
+]
+const genericMetrics = [
+  'file_size_bytes',
+  'checksum_valid',
+  'decode_error_count',
+]
 const globalMetrics = [
+  ...genericMetrics,
   'record_duration_sec',
   'timestamp_monotonic_violations',
   'frame_rate',
@@ -118,6 +139,7 @@ const form = reactive<QualityRulePayload>({
   description: '',
   scope: 'PROJECT',
   projectId: null,
+  dataType: 'MCAP',
   datasetPattern: '*',
   enabled: true,
   priority: 100,
@@ -125,6 +147,7 @@ const form = reactive<QualityRulePayload>({
 })
 
 const runOpen = ref(false)
+const runDataType = ref<QualityDataType>('MCAP')
 const runDatasetId = ref<number | null>(null)
 const running = ref(false)
 const overrideOpen = ref(false)
@@ -136,13 +159,25 @@ const overriding = ref(false)
 const canManageRules = computed(() => auth.hasPermission('data:qc:rule:manage'))
 const canExecute = computed(() => auth.hasPermission('data:qc:execute'))
 const canOverride = computed(() => auth.hasPermission('data:qc:override'))
+const runDatasets = computed(() =>
+  datasets.value.filter((dataset) => dataset.dataType === runDataType.value),
+)
+const availableAssertionTypes = computed(() =>
+  form.dataType === 'MCAP'
+    ? ['NUMERIC', 'REQUIRED_TOPIC', 'FORBIDDEN_TOPIC']
+    : ['NUMERIC'],
+)
+const availableMetricScopes = computed(() =>
+  form.dataType === 'MCAP' ? ['ALL', 'TOPIC', 'SCHEMA'] : ['ALL'],
+)
 
 function emptyAssertion(): QualityAssertion {
+  const generic = form.dataType !== 'MCAP'
   return {
     type: 'NUMERIC',
-    metric: 'record_duration_sec',
+    metric: generic ? 'file_size_bytes' : 'record_duration_sec',
     operator: '>=',
-    threshold: 3,
+    threshold: generic ? 1 : 3,
     severity: 'ERROR',
     metricScope: 'ALL',
     matchPattern: '',
@@ -150,7 +185,12 @@ function emptyAssertion(): QualityAssertion {
 }
 
 function metricOptions(assertion: QualityAssertion) {
+  if (form.dataType !== 'MCAP') return genericMetrics
   return assertion.metricScope === 'ALL' ? globalMetrics : topicMetrics
+}
+
+function changeDataType() {
+  form.assertions = [emptyAssertion()]
 }
 
 function changeAssertionType(assertion: QualityAssertion) {
@@ -249,6 +289,7 @@ function resetForm() {
     description: '',
     scope: 'PROJECT',
     projectId: projects.value[0]?.id ?? null,
+    dataType: 'MCAP',
     datasetPattern: '*',
     enabled: true,
     priority: 100,
@@ -269,6 +310,7 @@ function openEdit(rule: QualityRule) {
     description: rule.description ?? '',
     scope: rule.scope,
     projectId: rule.projectId,
+    dataType: rule.dataType,
     datasetPattern: rule.datasetPattern,
     enabled: rule.enabled,
     priority: rule.priority,
@@ -341,8 +383,13 @@ async function removeRule(rule: QualityRule) {
 }
 
 function openRun() {
-  runDatasetId.value = datasets.value[0]?.id ?? null
+  runDataType.value = datasets.value[0]?.dataType ?? 'MCAP'
+  runDatasetId.value = runDatasets.value[0]?.id ?? null
   runOpen.value = true
+}
+
+function changeRunDataType() {
+  runDatasetId.value = runDatasets.value[0]?.id ?? null
 }
 
 async function runCheck() {
@@ -525,7 +572,7 @@ onMounted(initialize)
               <template #default="{ row }">
                 <div class="stacked-cell">
                   <strong>{{ row.name }}</strong>
-                  <small>{{ row.algorithmCode }} · {{ row.datasetPattern }}</small>
+                  <small>{{ row.dataType }} · {{ row.algorithmCode }} · {{ row.datasetPattern }}</small>
                 </div>
               </template>
             </el-table-column>
@@ -810,6 +857,23 @@ onMounted(initialize)
               />
             </el-select>
           </el-form-item>
+          <el-form-item
+            :label="t('qualityControl.dataType')"
+            required
+          >
+            <el-select
+              v-model="form.dataType"
+              style="width: 100%"
+              @change="changeDataType"
+            >
+              <el-option
+                v-for="type in dataTypes"
+                :key="type"
+                :label="t(`qualityControl.dataTypes.${type}`)"
+                :value="type"
+              />
+            </el-select>
+          </el-form-item>
           <el-form-item :label="t('qualityControl.datasetPattern')">
             <el-input
               v-model="form.datasetPattern"
@@ -857,7 +921,7 @@ onMounted(initialize)
               @change="changeAssertionType(assertion)"
             >
               <el-option
-                v-for="type in ['NUMERIC', 'REQUIRED_TOPIC', 'FORBIDDEN_TOPIC']"
+                v-for="type in availableAssertionTypes"
                 :key="type"
                 :label="t(`qualityControl.assertionTypes.${type}`)"
                 :value="type"
@@ -869,7 +933,7 @@ onMounted(initialize)
                 @change="changeMetricScope(assertion)"
               >
                 <el-option
-                  v-for="scope in ['ALL', 'TOPIC', 'SCHEMA']"
+                  v-for="scope in availableMetricScopes"
                   :key="scope"
                   :label="t(`qualityControl.metricScopes.${scope}`)"
                   :value="scope"
@@ -950,6 +1014,20 @@ onMounted(initialize)
       width="500px"
     >
       <el-form label-position="top">
+        <el-form-item :label="t('qualityControl.dataType')">
+          <el-select
+            v-model="runDataType"
+            style="width: 100%"
+            @change="changeRunDataType"
+          >
+            <el-option
+              v-for="type in dataTypes"
+              :key="type"
+              :label="t(`qualityControl.dataTypes.${type}`)"
+              :value="type"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item :label="t('qualityControl.dataset')">
           <el-select
             v-model="runDatasetId"
@@ -957,7 +1035,7 @@ onMounted(initialize)
             style="width: 100%"
           >
             <el-option
-              v-for="dataset in datasets"
+              v-for="dataset in runDatasets"
               :key="dataset.id"
               :label="`${dataset.name} · ${dataset.projectName || '-'}`"
               :value="dataset.id"
@@ -965,7 +1043,9 @@ onMounted(initialize)
           </el-select>
         </el-form-item>
         <p class="dialog-hint">
-          {{ t('qualityControl.runHint') }}
+          {{ t('qualityControl.runHint', {
+            type: t(`qualityControl.dataTypes.${runDataType}`),
+          }) }}
         </p>
       </el-form>
       <template #footer>

@@ -9,6 +9,7 @@ public class QualityRule extends BaseAuditedModel {
     private String description;
     private String scope;
     private Long projectId;
+    private String dataType;
     private String datasetPattern;
     private String algorithmCode;
     private Boolean enabled;
@@ -46,6 +47,14 @@ public class QualityRule extends BaseAuditedModel {
 
     public void setProjectId(Long projectId) {
         this.projectId = projectId;
+    }
+
+    public String getDataType() {
+        return dataType;
+    }
+
+    public void setDataType(String dataType) {
+        this.dataType = dataType;
     }
 
     public String getDatasetPattern() {

@@ -86,6 +86,19 @@ class ProjectManagementIntegrationTest extends PostgreSqlIntegrationTestSupport 
                 .andExpect(jsonPath("$.data.metrics.activeMemberCount").value(1));
 
         long memberId = createManagerUser("project-member");
+        mockMvc.perform(get(PROJECTS + "/" + projectId + "/user-options")
+                        .header("Authorization", bearer(adminToken))
+                        .queryParam("personnelType", "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.data[?(@.username == 'project-member' && @.personnelType == 'MANAGER')]"
+                ).isNotEmpty());
+        mockMvc.perform(get(PROJECTS + "/" + projectId + "/user-options")
+                        .header("Authorization", bearer(adminToken))
+                        .queryParam("personnelType", "ANNOTATOR"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.username == 'project-member')]").isEmpty());
+
         mockMvc.perform(put(PROJECTS + "/" + projectId + "/members")
                         .header("Authorization", bearer(adminToken))
                         .contentType(MediaType.APPLICATION_JSON)

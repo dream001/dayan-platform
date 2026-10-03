@@ -7,8 +7,11 @@ import com.dayan.platform.vo.DataUploadViews.DatasetView;
 import com.dayan.platform.vo.DataUploadViews.UploadOptions;
 import com.dayan.platform.vo.DataUploadViews.UploadSessionView;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import java.math.BigDecimal;
 import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -52,11 +55,15 @@ public class DataUploadController {
             @RequestParam @NotBlank String dataType,
             @RequestParam @NotBlank String sourceFingerprint,
             @RequestParam(required = false) String robotType,
+            @RequestParam(required = false)
+            @DecimalMin(value = "0.001")
+            @Digits(integer = 9, fraction = 3) BigDecimal durationSeconds,
             @RequestPart("file") MultipartFile file,
             @AuthenticationPrincipal Jwt jwt
     ) {
         return service.uploadDirect(
-                projectId, storageKey, dataType, sourceFingerprint, robotType, file, userId(jwt)
+                projectId, storageKey, dataType, sourceFingerprint, robotType,
+                durationSeconds, file, userId(jwt)
         );
     }
 

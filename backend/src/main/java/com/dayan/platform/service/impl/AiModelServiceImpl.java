@@ -7,10 +7,12 @@ import com.dayan.platform.dto.AiModelDtos.ModelType;
 import com.dayan.platform.model.AiModel;
 import com.dayan.platform.repository.mapper.AiModelMapper;
 import com.dayan.platform.service.AiModelService;
+import com.dayan.platform.vo.AiModelViews.ModelDebugResult;
 import com.dayan.platform.vo.AiModelViews.ModelSummary;
 import com.dayan.platform.vo.AiModelViews.ModelTestResult;
 import com.dayan.platform.vo.PageResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.Inet6Address;
@@ -36,8 +38,10 @@ import org.springframework.util.StringUtils;
 public class AiModelServiceImpl implements AiModelService {
 
     private static final int TEST_RESPONSE_LIMIT = 300;
+    private static final int DEBUG_RESPONSE_LIMIT = 12_000;
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
+    private static final Duration DEBUG_REQUEST_TIMEOUT = Duration.ofSeconds(60);
 
     private final AiModelMapper modelMapper;
     private final ModelCredentialCipher credentialCipher;
@@ -183,12 +187,50 @@ public class AiModelServiceImpl implements AiModelService {
         return new ModelTestResult(success, model.getLastTestMessage(), latencyMs, testedAt);
     }
 
+    @Override
+    public ModelDebugResult debug(long id, String input) {
+        AiModel model = requireModel(id);
+        if (!Boolean.TRUE.equals(model.getEnabled())) {
+            throw conflict("Disabled models cannot be debugged");
+        }
+
+        OffsetDateTime testedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        long startedAt = System.nanoTime();
+        try {
+            URI endpoint = publicEndpoint(model.getModelUrl());
+            HttpResponse<String> response = httpClient.send(
+                    debugRequest(model, endpoint, input.trim()),
+                    HttpResponse.BodyHandlers.ofString()
+            );
+            long latencyMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+            boolean success = response.statusCode() >= 200 && response.statusCode() < 300;
+            String output = success
+                    ? responseContent(response.body())
+                    : truncate(response.body() == null ? "" : response.body(), DEBUG_RESPONSE_LIMIT);
+            String message = success
+                    ? "Debug request succeeded"
+                    : "Provider returned HTTP " + response.statusCode();
+            return new ModelDebugResult(
+                    success,
+                    response.statusCode(),
+                    latencyMs,
+                    output,
+                    message,
+                    testedAt
+            );
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return debugFailure(startedAt, testedAt, "Debug request was interrupted");
+        } catch (IOException | RuntimeException exception) {
+            return debugFailure(startedAt, testedAt, "Debug request failed: " + safeMessage(exception));
+        }
+    }
+
     private void apply(AiModel model, ModelRequest request, boolean preserveBlankCredentials) {
-        validateUrl(request.accessAddress(), "accessAddress");
         validateUrl(request.modelUrl(), "modelUrl");
         model.setManufacturer(request.manufacturer().trim());
         model.setName(request.name().trim());
-        model.setAccessAddress(request.accessAddress().trim());
+        model.setAccessAddress(endpointOrigin(request.modelUrl()));
         model.setModelUrl(request.modelUrl().trim());
         model.setModelType(request.modelType().name());
         model.setEnabled(request.enabled());
@@ -201,11 +243,44 @@ public class AiModelServiceImpl implements AiModelService {
     }
 
     private HttpRequest testRequest(AiModel model, URI endpoint) throws JsonProcessingException {
+        return authenticatedRequest(model, endpoint, REQUEST_TIMEOUT, testBody(model));
+    }
+
+    private HttpRequest debugRequest(AiModel model, URI endpoint, String input) throws JsonProcessingException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", model.getName());
+        switch (ModelType.valueOf(model.getModelType())) {
+            case EMBEDDING -> body.put("input", input);
+            case RERANK -> {
+                body.put("query", input);
+                body.put("documents", List.of(input));
+            }
+            case IMAGE, VIDEO -> body.put("prompt", input);
+            case AUDIO -> body.put("input", input);
+            case CHAT, MULTIMODAL -> {
+                body.put("messages", List.of(Map.of("role", "user", "content", input)));
+                body.put("max_tokens", 512);
+            }
+        }
+        return authenticatedRequest(
+                model,
+                endpoint,
+                DEBUG_REQUEST_TIMEOUT,
+                objectMapper.writeValueAsString(body)
+        );
+    }
+
+    private HttpRequest authenticatedRequest(
+            AiModel model,
+            URI endpoint,
+            Duration timeout,
+            String body
+    ) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
-                .timeout(REQUEST_TIMEOUT)
+                .timeout(timeout)
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(testBody(model)));
+                .POST(HttpRequest.BodyPublishers.ofString(body));
 
         String accessKey = credentialCipher.decrypt(model.getAccessKeyCiphertext());
         String secretKey = credentialCipher.decrypt(model.getSecretKeyCiphertext());
@@ -231,7 +306,7 @@ public class AiModelServiceImpl implements AiModelService {
                 body.put("query", "connection test");
                 body.put("documents", List.of("connection test"));
             }
-            case IMAGE -> body.put("prompt", "connection test");
+            case IMAGE, VIDEO -> body.put("prompt", "connection test");
             case AUDIO -> body.put("input", "connection test");
             case CHAT, MULTIMODAL -> {
                 body.put("messages", List.of(Map.of("role", "user", "content", "ping")));
@@ -259,6 +334,24 @@ public class AiModelServiceImpl implements AiModelService {
             throw invalid("modelUrl host could not be resolved");
         }
         return uri;
+    }
+
+    private String endpointOrigin(String value) {
+        try {
+            URI uri = new URI(value.trim());
+            validateUrl(uri, "modelUrl");
+            return new URI(
+                    uri.getScheme(),
+                    null,
+                    uri.getHost(),
+                    uri.getPort(),
+                    null,
+                    null,
+                    null
+            ).toString();
+        } catch (URISyntaxException exception) {
+            throw invalid("modelUrl must be a valid HTTP or HTTPS URL");
+        }
     }
 
     private void validateUrl(String value, String field) {
@@ -330,6 +423,41 @@ public class AiModelServiceImpl implements AiModelService {
             return "";
         }
         return ": " + truncate(body.replaceAll("\\s+", " ").trim(), TEST_RESPONSE_LIMIT);
+    }
+
+    private String responseContent(String body) {
+        if (!StringUtils.hasText(body)) {
+            return "";
+        }
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode content = root.path("choices").path(0).path("message").path("content");
+            if (content.isTextual()) {
+                return truncate(content.asText(), DEBUG_RESPONSE_LIMIT);
+            }
+            JsonNode text = root.path("choices").path(0).path("text");
+            if (text.isTextual()) {
+                return truncate(text.asText(), DEBUG_RESPONSE_LIMIT);
+            }
+            JsonNode outputText = root.path("output_text");
+            if (outputText.isTextual()) {
+                return truncate(outputText.asText(), DEBUG_RESPONSE_LIMIT);
+            }
+            return truncate(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root), DEBUG_RESPONSE_LIMIT);
+        } catch (JsonProcessingException exception) {
+            return truncate(body, DEBUG_RESPONSE_LIMIT);
+        }
+    }
+
+    private ModelDebugResult debugFailure(long startedAt, OffsetDateTime testedAt, String message) {
+        return new ModelDebugResult(
+                false,
+                0,
+                Duration.ofNanos(System.nanoTime() - startedAt).toMillis(),
+                "",
+                message,
+                testedAt
+        );
     }
 
     private String safeMessage(Exception exception) {

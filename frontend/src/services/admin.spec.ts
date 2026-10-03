@@ -11,6 +11,7 @@ import {
   getDataUploadOptions,
   getDashboardStatistics,
   getUserFilterOptions,
+  getUserRoleCounts,
   getUsers,
   grantRolePermissions,
   reorderMenus,
@@ -110,6 +111,10 @@ describe('management API contracts', () => {
       projectId: 9,
     })
     await getUserFilterOptions()
+    await getUserRoleCounts({
+      keyword: 'alex',
+      projectId: 9,
+    })
     await createUsersBatch({
       departmentId: null,
       password: 'Batch-Password-2026',
@@ -140,6 +145,15 @@ describe('management API contracts', () => {
         url: '/system/users/filter-options',
         method: 'get',
         params: undefined,
+        body: undefined,
+      },
+      {
+        url: '/system/users/role-counts',
+        method: 'get',
+        params: {
+          keyword: 'alex',
+          projectId: 9,
+        },
         body: undefined,
       },
       {
@@ -307,11 +321,12 @@ describe('management API contracts', () => {
     await createDataUploadSession({
       projectId: 7,
       storageKey: 'minio-default',
-      dataType: 'MCAP',
-      fileName: 'capture.mcap',
-      contentType: 'application/octet-stream',
+      dataType: 'VIDEO',
+      fileName: 'capture.mp4',
+      contentType: 'video/mp4',
       totalSize: 10485761,
       sourceFingerprint: 'fingerprint',
+      durationSeconds: 12.345,
     })
     await uploadDataPart(
       'session-1',
@@ -325,7 +340,8 @@ describe('management API contracts', () => {
     expect(requests[1]?.url).toBe('/data/uploads/sessions')
     expect(JSON.parse(String(requests[1]?.body))).toMatchObject({
       projectId: 7,
-      dataType: 'MCAP',
+      dataType: 'VIDEO',
+      durationSeconds: 12.345,
     })
     expect(requests[2]?.url).toBe('/data/uploads/sessions/session-1/parts/0')
     expect(requests[2]?.body).toBeInstanceOf(FormData)

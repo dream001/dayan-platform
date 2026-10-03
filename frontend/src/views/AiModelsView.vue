@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  ChatDotRound,
   Connection,
   Delete,
   Edit,
@@ -15,6 +16,7 @@ import StatePanel from '@/components/StatePanel.vue'
 import {
   changeAiModelStatus,
   createAiModel,
+  debugAiModel,
   deleteAiModel,
   getAiModels,
   testAiModel,
@@ -22,34 +24,34 @@ import {
 } from '@/services/ai-models'
 import { confirmAction, getErrorMessage, notifyError } from '@/services/feedback'
 import { useAuthStore } from '@/stores/auth'
-import type { AiModel, AiModelPayload, ModelType } from '@/types/ai-model'
+import type {
+  AiModel,
+  AiModelPayload,
+  ModelDebugResult,
+  ModelType,
+} from '@/types/ai-model'
 import { formatDateTime } from '@/utils/format'
 
 interface ProviderPreset {
   manufacturer: string
-  accessAddress: string
   modelUrl: string
 }
 
 const providerPresets: ProviderPreset[] = [
   {
     manufacturer: '豆包',
-    accessAddress: 'https://ark.cn-beijing.volces.com',
     modelUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
   },
   {
     manufacturer: '阿里云百炼（千问）',
-    accessAddress: 'https://dashscope.aliyuncs.com',
     modelUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
   },
   {
     manufacturer: 'DeepSeek',
-    accessAddress: 'https://api.deepseek.com',
     modelUrl: 'https://api.deepseek.com/chat/completions',
   },
   {
     manufacturer: 'OpenAI',
-    accessAddress: 'https://api.openai.com',
     modelUrl: 'https://api.openai.com/v1/chat/completions',
   },
 ]
@@ -60,6 +62,7 @@ const modelTypes: ModelType[] = [
   'MULTIMODAL',
   'RERANK',
   'IMAGE',
+  'VIDEO',
   'AUDIO',
 ]
 
@@ -70,6 +73,11 @@ const error = ref('')
 const models = ref<AiModel[]>([])
 const total = ref(0)
 const testingId = ref<number | null>(null)
+const debugOpen = ref(false)
+const debugModel = ref<AiModel | null>(null)
+const debugInput = ref('')
+const debugging = ref(false)
+const debugResult = ref<ModelDebugResult | null>(null)
 const query = reactive({
   page: 1,
   size: 20,
@@ -125,11 +133,17 @@ function resetFilters() {
   search()
 }
 
+function filterByProvider(manufacturer: string) {
+  query.keyword = query.keyword.trim() === manufacturer ? '' : manufacturer
+  query.page = 1
+  void load()
+}
+
 function resetForm() {
   Object.assign(form, {
     manufacturer: providerPresets[0].manufacturer,
     name: '',
-    accessAddress: providerPresets[0].accessAddress,
+    accessAddress: '',
     modelUrl: providerPresets[0].modelUrl,
     modelType: 'CHAT',
     accessKey: '',
@@ -151,7 +165,7 @@ function openEdit(model: AiModel) {
   Object.assign(form, {
     manufacturer: model.manufacturer,
     name: model.name,
-    accessAddress: model.accessAddress,
+    accessAddress: endpointOrigin(model.modelUrl) || model.accessAddress,
     modelUrl: model.modelUrl,
     modelType: model.modelType,
     accessKey: '',
@@ -164,16 +178,28 @@ function openEdit(model: AiModel) {
 function selectProvider(manufacturer: string) {
   const preset = providerPresets.find((item) => item.manufacturer === manufacturer)
   if (!preset) return
-  form.accessAddress = preset.accessAddress
   form.modelUrl = preset.modelUrl
 }
 
+function endpointOrigin(value: string) {
+  try {
+    const endpoint = new URL(value.trim())
+    if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password) {
+      return ''
+    }
+    return endpoint.origin
+  } catch {
+    return ''
+  }
+}
+
 async function save() {
+  const accessAddress = endpointOrigin(form.modelUrl)
   if (
     !form.manufacturer.trim()
     || !form.name.trim()
-    || !form.accessAddress.trim()
     || !form.modelUrl.trim()
+    || !accessAddress
   ) {
     ElMessage.warning(t('aiModels.validation'))
     return
@@ -188,7 +214,7 @@ async function save() {
     ...form,
     manufacturer: form.manufacturer.trim(),
     name: form.name.trim(),
-    accessAddress: form.accessAddress.trim(),
+    accessAddress,
     modelUrl: form.modelUrl.trim(),
     accessKey: form.accessKey.trim(),
     secretKey: form.secretKey.trim(),
@@ -234,6 +260,27 @@ async function testConnection(model: AiModel) {
     notifyError(reason, t('aiModels.testFailed'))
   } finally {
     testingId.value = null
+  }
+}
+
+function openDebug(model: AiModel) {
+  debugModel.value = model
+  debugInput.value = ''
+  debugResult.value = null
+  debugOpen.value = true
+}
+
+async function runDebug() {
+  const input = debugInput.value.trim()
+  if (!debugModel.value || !input) return
+  debugging.value = true
+  debugResult.value = null
+  try {
+    debugResult.value = await debugAiModel(debugModel.value.id, input)
+  } catch (reason) {
+    notifyError(reason, t('aiModels.debugFailed'))
+  } finally {
+    debugging.value = false
   }
 }
 
@@ -293,12 +340,17 @@ onMounted(load)
 
     <div class="provider-strip">
       <span>{{ t('aiModels.mainstreamProviders') }}</span>
-      <strong
+      <button
         v-for="provider in providerPresets"
         :key="provider.manufacturer"
+        class="provider-strip__button"
+        :class="{ 'provider-strip__button--active': query.keyword.trim() === provider.manufacturer }"
+        type="button"
+        :aria-pressed="query.keyword.trim() === provider.manufacturer"
+        @click="filterByProvider(provider.manufacturer)"
       >
         {{ provider.manufacturer }}
-      </strong>
+      </button>
     </div>
 
     <form
@@ -459,7 +511,7 @@ onMounted(load)
           </el-table-column>
           <el-table-column
             :label="t('common.operation')"
-            width="136"
+            width="176"
             fixed="right"
           >
             <template #default="{ row }">
@@ -474,6 +526,17 @@ onMounted(load)
                     :disabled="!row.enabled"
                     :aria-label="t('aiModels.test')"
                     @click="testConnection(row)"
+                  />
+                </el-tooltip>
+                <el-tooltip :content="t('aiModels.debug')">
+                  <el-button
+                    v-permission="'basic:model:test'"
+                    :icon="ChatDotRound"
+                    circle
+                    text
+                    :disabled="!row.enabled"
+                    :aria-label="t('aiModels.debug')"
+                    @click="openDebug(row)"
                   />
                 </el-tooltip>
                 <el-tooltip :content="t('common.edit')">
@@ -571,17 +634,6 @@ onMounted(load)
           </el-form-item>
           <el-form-item
             class="model-form-grid__wide"
-            :label="t('aiModels.accessAddress')"
-            required
-          >
-            <el-input
-              v-model="form.accessAddress"
-              maxlength="500"
-              placeholder="https://api.example.com"
-            />
-          </el-form-item>
-          <el-form-item
-            class="model-form-grid__wide"
             :label="t('aiModels.modelUrl')"
             required
           >
@@ -631,6 +683,63 @@ onMounted(load)
         </div>
       </template>
     </el-drawer>
+
+    <el-dialog
+      v-model="debugOpen"
+      :title="t('aiModels.debugTitle')"
+      width="min(680px, calc(100vw - 32px))"
+      destroy-on-close
+    >
+      <div
+        v-if="debugModel"
+        class="debug-console"
+      >
+        <div class="debug-console__meta">
+          <strong>{{ debugModel.name }}</strong>
+          <span>{{ debugModel.manufacturer }}</span>
+          <code>{{ debugModel.modelUrl }}</code>
+        </div>
+        <el-input
+          v-model="debugInput"
+          type="textarea"
+          :rows="5"
+          maxlength="4000"
+          show-word-limit
+          resize="vertical"
+          :placeholder="t('aiModels.debugPlaceholder')"
+        />
+        <div class="debug-console__actions">
+          <span>{{ t(`aiModels.types.${debugModel.modelType}`) }}</span>
+          <el-button
+            v-permission="'basic:model:test'"
+            type="primary"
+            :icon="ChatDotRound"
+            :loading="debugging"
+            :disabled="!debugInput.trim()"
+            @click="runDebug"
+          >
+            {{ t('aiModels.runDebug') }}
+          </el-button>
+        </div>
+        <div
+          v-if="debugResult"
+          class="debug-result"
+          :class="{ 'debug-result--failed': !debugResult.success }"
+        >
+          <div class="debug-result__header">
+            <el-tag
+              :type="debugResult.success ? 'success' : 'danger'"
+              effect="plain"
+            >
+              {{ debugResult.success ? t('aiModels.debugSucceeded') : t('aiModels.debugFailed') }}
+            </el-tag>
+            <span>HTTP {{ debugResult.statusCode || '-' }}</span>
+            <span>{{ debugResult.latencyMs }} ms</span>
+          </div>
+          <pre>{{ debugResult.output || debugResult.message }}</pre>
+        </div>
+      </div>
+    </el-dialog>
   </section>
 </template>
 
@@ -650,11 +759,31 @@ onMounted(load)
   font-size: 11px;
 }
 
-.provider-strip strong {
+.provider-strip__button {
+  align-self: stretch;
+  padding: 0 2px;
+  cursor: pointer;
+  border: 0;
+  border-bottom: 2px solid transparent;
   color: var(--color-text-secondary);
+  background: transparent;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.provider-strip__button:hover {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+
+.provider-strip__button--active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .model-identity {
@@ -722,6 +851,77 @@ onMounted(load)
   width: 100%;
 }
 
+.debug-console {
+  display: grid;
+  gap: 18px;
+}
+
+.debug-console__meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+
+.debug-console__meta strong {
+  color: var(--color-ink);
+  font-size: 15px;
+}
+
+.debug-console__meta span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.debug-console__meta code {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-console__actions,
+.debug-result__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.debug-console__actions {
+  justify-content: space-between;
+}
+
+.debug-console__actions > span,
+.debug-result__header span {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.debug-result {
+  border-left: 3px solid var(--el-color-success);
+  background: var(--color-surface-soft);
+  padding: 14px 16px;
+}
+
+.debug-result--failed {
+  border-left-color: var(--el-color-danger);
+}
+
+.debug-result pre {
+  max-height: 320px;
+  overflow: auto;
+  margin: 14px 0 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 700px) {
   .provider-strip {
     gap: 14px;
@@ -732,6 +932,14 @@ onMounted(load)
   }
 
   .model-form-grid__wide {
+    grid-column: auto;
+  }
+
+  .debug-console__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .debug-console__meta code {
     grid-column: auto;
   }
 }

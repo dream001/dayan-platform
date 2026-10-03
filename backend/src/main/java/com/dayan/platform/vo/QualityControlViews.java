@@ -17,6 +17,7 @@ public final class QualityControlViews {
             String scope,
             Long projectId,
             String projectName,
+            String dataType,
             String datasetPattern,
             String algorithmCode,
             boolean enabled,
@@ -69,7 +70,7 @@ public final class QualityControlViews {
     public record ExecutionDetail(ExecutionView execution, ReportRequest report) {
     }
 
-    public record DatasetOption(long id, String name, String projectName) {
+    public record DatasetOption(long id, String name, String projectName, String dataType) {
     }
 
     public record ProjectOption(long id, String name) {

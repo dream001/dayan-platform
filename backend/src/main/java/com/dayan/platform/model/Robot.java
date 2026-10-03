@@ -8,6 +8,7 @@ public class Robot extends BaseAuditedModel {
 
     private String name;
     private String iconUrl;
+    private Long iconFileId;
     private String titleZh;
     private String titleEn;
     private String robotType;
@@ -33,6 +34,14 @@ public class Robot extends BaseAuditedModel {
 
     public void setIconUrl(String iconUrl) {
         this.iconUrl = iconUrl;
+    }
+
+    public Long getIconFileId() {
+        return iconFileId;
+    }
+
+    public void setIconFileId(Long iconFileId) {
+        this.iconFileId = iconFileId;
     }
 
     public String getTitleZh() {

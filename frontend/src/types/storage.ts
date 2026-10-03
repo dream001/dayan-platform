@@ -1,6 +1,7 @@
 export type StorageProvider =
   | 'TENCENT_COS'
   | 'ALIYUN_OSS'
+  | 'VOLCENGINE_TOS'
   | 'HUAWEI_OBS'
   | 'AWS_S3'
   | 'AZURE_BLOB'

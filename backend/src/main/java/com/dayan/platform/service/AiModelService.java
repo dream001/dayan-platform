@@ -3,6 +3,7 @@ package com.dayan.platform.service;
 import com.dayan.platform.dto.AiModelDtos.ModelRequest;
 import com.dayan.platform.dto.AiModelDtos.ModelType;
 import com.dayan.platform.vo.AiModelViews.ModelSummary;
+import com.dayan.platform.vo.AiModelViews.ModelDebugResult;
 import com.dayan.platform.vo.AiModelViews.ModelTestResult;
 import com.dayan.platform.vo.PageResponse;
 
@@ -27,4 +28,6 @@ public interface AiModelService {
     void delete(long id);
 
     ModelTestResult test(long id);
+
+    ModelDebugResult debug(long id, String input);
 }

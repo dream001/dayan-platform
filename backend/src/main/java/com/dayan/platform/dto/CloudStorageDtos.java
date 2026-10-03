@@ -17,7 +17,7 @@ public final class CloudStorageDtos {
             String storageKey,
             @NotBlank @Size(max = 120) String name,
             @NotBlank
-            @Pattern(regexp = "TENCENT_COS|ALIYUN_OSS|HUAWEI_OBS|AWS_S3|AZURE_BLOB|CLOUDFLARE_R2|MINIO")
+            @Pattern(regexp = "TENCENT_COS|ALIYUN_OSS|VOLCENGINE_TOS|HUAWEI_OBS|AWS_S3|AZURE_BLOB|CLOUDFLARE_R2|MINIO")
             String provider,
             @NotBlank @Size(max = 500) String endpoint,
             @Size(max = 100) String region,

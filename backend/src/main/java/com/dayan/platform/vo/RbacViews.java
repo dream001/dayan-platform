@@ -52,6 +52,17 @@ public final class RbacViews {
         }
     }
 
+    public record UserRoleCounts(
+            long total,
+            long visitor,
+            long collector,
+            long annotator,
+            long auditor,
+            long manager,
+            long administrator
+    ) {
+    }
+
     public record RoleSummary(
             long id,
             String name,

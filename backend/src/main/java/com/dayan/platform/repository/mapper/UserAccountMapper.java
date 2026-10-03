@@ -3,6 +3,7 @@ package com.dayan.platform.repository.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.dayan.platform.model.UserAccount;
 import com.dayan.platform.repository.query.OptionRow;
+import com.dayan.platform.repository.query.UserRoleCountsRow;
 import com.dayan.platform.repository.query.UserSummaryRow;
 import java.util.Collection;
 import java.util.List;
@@ -144,6 +145,81 @@ public interface UserAccountMapper extends BaseMapper<UserAccount> {
             @Param("departmentId") Long departmentId,
             @Param("enabled") Boolean enabled,
             @Param("roleCode") String roleCode,
+            @Param("projectId") Long projectId
+    );
+
+    @Select("""
+            <script>
+            SELECT count(*) AS total,
+                   count(*) FILTER (
+                     WHERE NOT EXISTS (
+                       SELECT 1 FROM sys_user_role visitor_role
+                       WHERE visitor_role.user_id = u.id
+                     )
+                   ) AS visitor,
+                   count(*) FILTER (
+                     WHERE EXISTS (
+                       SELECT 1 FROM sys_user_role ur
+                       JOIN sys_role r ON r.id = ur.role_id
+                       WHERE ur.user_id = u.id AND r.code = 'COLLECTOR'
+                     )
+                   ) AS collector,
+                   count(*) FILTER (
+                     WHERE EXISTS (
+                       SELECT 1 FROM sys_user_role ur
+                       JOIN sys_role r ON r.id = ur.role_id
+                       WHERE ur.user_id = u.id AND r.code = 'ANNOTATOR'
+                     )
+                   ) AS annotator,
+                   count(*) FILTER (
+                     WHERE EXISTS (
+                       SELECT 1 FROM sys_user_role ur
+                       JOIN sys_role r ON r.id = ur.role_id
+                       WHERE ur.user_id = u.id AND r.code = 'AUDITOR'
+                     )
+                   ) AS auditor,
+                   count(*) FILTER (
+                     WHERE EXISTS (
+                       SELECT 1 FROM sys_user_role ur
+                       JOIN sys_role r ON r.id = ur.role_id
+                       WHERE ur.user_id = u.id AND r.code = 'MANAGER'
+                     )
+                   ) AS manager,
+                   count(*) FILTER (
+                     WHERE EXISTS (
+                       SELECT 1 FROM sys_user_role ur
+                       JOIN sys_role r ON r.id = ur.role_id
+                       WHERE ur.user_id = u.id AND r.code = 'SUPER_ADMIN'
+                     )
+                   ) AS administrator
+            FROM sys_user u
+            <where>
+              <if test="keyword != null and keyword != ''">
+                AND (u.username ILIKE '%' || #{keyword} || '%'
+                     OR u.display_name ILIKE '%' || #{keyword} || '%'
+                     OR u.email ILIKE '%' || #{keyword} || '%')
+              </if>
+              <if test="departmentId != null">AND u.department_id = #{departmentId}</if>
+              <if test="enabled != null">AND u.enabled = #{enabled}</if>
+              <if test="projectId != null">
+                AND EXISTS (
+                  SELECT 1
+                  FROM basic_project_member project_member
+                  WHERE project_member.user_id = u.id
+                    AND project_member.project_id = #{projectId}
+                    AND (project_member.valid_from IS NULL
+                         OR project_member.valid_from &lt;= CURRENT_TIMESTAMP)
+                    AND (project_member.valid_until IS NULL
+                         OR project_member.valid_until > CURRENT_TIMESTAMP)
+                )
+              </if>
+            </where>
+            </script>
+            """)
+    UserRoleCountsRow selectRoleCounts(
+            @Param("keyword") String keyword,
+            @Param("departmentId") Long departmentId,
+            @Param("enabled") Boolean enabled,
             @Param("projectId") Long projectId
     );
 

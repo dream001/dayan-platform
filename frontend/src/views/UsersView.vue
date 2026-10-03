@@ -14,6 +14,7 @@ import {
   getDepartments,
   getRoles,
   getUserFilterOptions,
+  getUserRoleCounts,
   getUsers,
   resetUserPassword,
   updateUser,
@@ -26,6 +27,7 @@ import type {
   RoleSummary,
   UserCreatePayload,
   UserProjectOption,
+  UserRoleCounts,
   UserSummary,
 } from '@/types/admin'
 import { formatDateTime } from '@/utils/format'
@@ -38,6 +40,7 @@ const users = ref<UserSummary[]>([])
 const departments = ref<DepartmentNode[]>([])
 const roles = ref<RoleSummary[]>([])
 const projects = ref<UserProjectOption[]>([])
+const roleCounts = ref<UserRoleCounts | null>(null)
 const total = ref(0)
 const query = reactive({
   page: 1,
@@ -82,13 +85,13 @@ const departmentProps = { label: 'name', children: 'children', value: 'id' }
 const canLoadDepartments = computed(() => auth.hasPermission('system:department:view'))
 const canLoadRoles = computed(() => auth.hasPermission('system:role:view'))
 const roleTabs = computed(() => [
-  { code: '', label: t('users.roleTabs.all') },
-  { code: 'VISITOR', label: t('users.roleTabs.visitor') },
-  { code: 'COLLECTOR', label: t('users.roleTabs.collector') },
-  { code: 'ANNOTATOR', label: t('users.roleTabs.annotator') },
-  { code: 'AUDITOR', label: t('users.roleTabs.auditor') },
-  { code: 'MANAGER', label: t('users.roleTabs.manager') },
-  { code: 'SUPER_ADMIN', label: t('users.roleTabs.administrator') },
+  { code: '', label: t('users.roleTabs.all'), count: roleCounts.value?.total },
+  { code: 'VISITOR', label: t('users.roleTabs.visitor'), count: roleCounts.value?.visitor },
+  { code: 'COLLECTOR', label: t('users.roleTabs.collector'), count: roleCounts.value?.collector },
+  { code: 'ANNOTATOR', label: t('users.roleTabs.annotator'), count: roleCounts.value?.annotator },
+  { code: 'AUDITOR', label: t('users.roleTabs.auditor'), count: roleCounts.value?.auditor },
+  { code: 'MANAGER', label: t('users.roleTabs.manager'), count: roleCounts.value?.manager },
+  { code: 'SUPER_ADMIN', label: t('users.roleTabs.administrator'), count: roleCounts.value?.administrator },
 ])
 const batchUsers = computed<BatchUserEntry[]>(() => batchText.value
   .split(/\r?\n/)
@@ -127,6 +130,23 @@ async function loadUsers() {
   }
 }
 
+async function loadRoleCounts() {
+  try {
+    roleCounts.value = await getUserRoleCounts({
+      keyword: query.keyword.trim() || undefined,
+      departmentId: query.departmentId,
+      enabled: query.enabled,
+      projectId: query.projectId,
+    })
+  } catch {
+    roleCounts.value = null
+  }
+}
+
+async function reloadUsersAndCounts() {
+  await Promise.all([loadUsers(), loadRoleCounts()])
+}
+
 async function loadOptions() {
   const tasks: Promise<void>[] = []
   if (canLoadDepartments.value) {
@@ -152,7 +172,7 @@ function selectRole(code: string) {
 
 function search() {
   query.page = 1
-  void loadUsers()
+  void reloadUsersAndCounts()
 }
 
 function resetFilters() {
@@ -223,7 +243,7 @@ async function saveBatchUsers() {
     })
     ElMessage.success(t('users.batchCreated', { count: created.length }))
     batchDialogOpen.value = false
-    await loadUsers()
+    await reloadUsersAndCounts()
   } catch (reason) {
     notifyError(reason, t('users.batchFailed'))
   } finally {
@@ -272,7 +292,7 @@ async function saveUser() {
       ElMessage.success(t('users.updated'))
     }
     drawerOpen.value = false
-    await loadUsers()
+    await reloadUsersAndCounts()
   } catch (reason) {
     notifyError(reason, t('users.saveFailed'))
   } finally {
@@ -313,7 +333,7 @@ async function saveRoles() {
     await assignUserRoles(roleUser.value.id, selectedRoleIds.value)
     ElMessage.success(t('users.rolesSaved'))
     roleDialogOpen.value = false
-    await loadUsers()
+    await reloadUsersAndCounts()
   } catch (reason) {
     notifyError(reason, t('users.roleAssignFailed'))
   } finally {
@@ -354,14 +374,14 @@ async function removeUser(user: UserSummary) {
   try {
     await deleteUser(user.id)
     ElMessage.success(t('users.deleted'))
-    await loadUsers()
+    await reloadUsersAndCounts()
   } catch (reason) {
     notifyError(reason, t('users.deleteFailed'))
   }
 }
 
 onMounted(() => {
-  void Promise.all([loadUsers(), loadOptions()])
+  void Promise.all([loadUsers(), loadRoleCounts(), loadOptions()])
 })
 </script>
 
@@ -386,7 +406,8 @@ onMounted(() => {
         :aria-pressed="(query.roleCode ?? '') === tab.code"
         @click="selectRole(tab.code)"
       >
-        {{ tab.label }}
+        <span>{{ tab.label }}</span>
+        <small>{{ tab.count ?? '—' }}</small>
       </button>
     </nav>
 
@@ -896,7 +917,11 @@ onMounted(() => {
 
 .user-role-tab {
   position: relative;
+  display: inline-flex;
   min-width: 72px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 0 8px;
   cursor: pointer;
   border: 0;
@@ -904,6 +929,22 @@ onMounted(() => {
   background: transparent;
   font-size: 13px;
   font-weight: 560;
+}
+
+.user-role-tab small {
+  display: inline-grid;
+  min-width: 22px;
+  height: 20px;
+  place-items: center;
+  padding: 0 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .user-role-tab::after {
@@ -924,6 +965,12 @@ onMounted(() => {
 
 .user-role-tab--active {
   font-weight: 680;
+}
+
+.user-role-tab--active small {
+  border-color: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
 .user-role-tab--active::after {

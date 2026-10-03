@@ -156,7 +156,7 @@ public class DatasetServiceImpl implements DatasetService {
                 agg.coveredDuration
         );
 
-        return new DatasetDetail(view, task, annotation, buildPreview(row));
+        return new DatasetDetail(view, task, annotation, view.preview());
     }
 
     @Override
@@ -675,6 +675,7 @@ public class DatasetServiceImpl implements DatasetService {
                 row.metadataStatus,
                 Boolean.TRUE.equals(row.openShared),
                 List.copyOf(tags),
+                buildPreview(row),
                 row.createdAt,
                 row.updatedAt
         );

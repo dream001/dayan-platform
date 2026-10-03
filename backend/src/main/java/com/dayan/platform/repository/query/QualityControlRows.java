@@ -111,6 +111,7 @@ public final class QualityControlRows {
         private Long id;
         private String name;
         private String projectName;
+        private String dataType;
 
         public Long getId() {
             return id;
@@ -134,6 +135,14 @@ public final class QualityControlRows {
 
         public void setProjectName(String projectName) {
             this.projectName = projectName;
+        }
+
+        public String getDataType() {
+            return dataType;
+        }
+
+        public void setDataType(String dataType) {
+            this.dataType = dataType;
         }
     }
 

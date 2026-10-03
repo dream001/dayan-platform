@@ -28,6 +28,7 @@ import type {
   UserCreatePayload,
   UserFilterOptions,
   UserQuery,
+  UserRoleCounts,
   UserSummary,
   UserUpdatePayload,
 } from '@/types/admin'
@@ -63,6 +64,10 @@ export async function getUsers(params: UserQuery) {
 
 export async function getUserFilterOptions() {
   return data(await http.get<ApiResponse<UserFilterOptions>>('/system/users/filter-options'))
+}
+
+export async function getUserRoleCounts(params: Omit<UserQuery, 'page' | 'size' | 'roleCode'>) {
+  return data(await http.get<ApiResponse<UserRoleCounts>>('/system/users/role-counts', { params }))
 }
 
 export async function getUser(id: number) {
@@ -251,6 +256,7 @@ export async function uploadDataDirect(
     dataType: DataUploadType
     sourceFingerprint: string
     robotType?: string
+    durationSeconds?: number
   },
   file: File,
   onProgress: (loaded: number) => void,
@@ -262,6 +268,9 @@ export async function uploadDataDirect(
   form.append('dataType', payload.dataType)
   form.append('sourceFingerprint', payload.sourceFingerprint)
   if (payload.robotType) form.append('robotType', payload.robotType)
+  if (payload.durationSeconds != null) {
+    form.append('durationSeconds', payload.durationSeconds.toFixed(3))
+  }
   form.append('file', file)
   return data(await http.post<ApiResponse<UploadedDataset>>('/data/uploads/direct', form, {
     signal,

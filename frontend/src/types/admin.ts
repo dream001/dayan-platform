@@ -7,7 +7,35 @@ export interface DashboardStatistics {
   totalFileSizeBytes: number
   recentOperationCount: number
   recentOperations: OperationLogSummary[]
+  dataMetricsAvailable: boolean
+  projectDistributionAvailable: boolean
+  collectionDistributionAvailable: boolean
+  qualityDistributionAvailable: boolean
+  datasetCount: number | null
+  datasetDurationSeconds: number | null
+  annotationCount: number | null
+  annotationDurationSeconds: number | null
+  annotationPassRate: number | null
+  annotationResolveRate: number | null
+  projectDistribution: DashboardNamedValue[]
+  collectionStatusDistribution: DashboardNamedValue[]
+  annotationQualityDistribution: DashboardNamedValue[]
+  dataQualityDistribution: DashboardNamedValue[]
+  dataGrowthTrend: DashboardTrendPoint[]
+  dataQualityTrend: DashboardTrendPoint[]
+  annotationGrowthTrend: DashboardTrendPoint[]
+  annotationQualityTrend: DashboardTrendPoint[]
   generatedAt: string
+}
+
+export interface DashboardNamedValue {
+  name: string
+  value: number
+}
+
+export interface DashboardTrendPoint {
+  date: string
+  values: Record<string, number>
 }
 
 export interface DepartmentNode {
@@ -89,6 +117,16 @@ export interface UserProjectOption {
 
 export interface UserFilterOptions {
   projects: UserProjectOption[]
+}
+
+export interface UserRoleCounts {
+  total: number
+  visitor: number
+  collector: number
+  annotator: number
+  auditor: number
+  manager: number
+  administrator: number
 }
 
 export interface RoleSummary {
@@ -332,6 +370,7 @@ export interface UploadedDataset {
   originalName: string
   contentType: string
   sizeBytes: number
+  durationSeconds: number | null
   status: 'READY' | 'PROCESSING' | 'FAILED'
   createdAt: string
 }
@@ -358,4 +397,5 @@ export interface CreateDataUploadSessionPayload {
   totalSize: number
   sourceFingerprint: string
   robotType?: string
+  durationSeconds?: number
 }

@@ -16,6 +16,8 @@ import com.dayan.platform.vo.DataUploadViews.UploadOptions;
 import com.dayan.platform.vo.DataUploadViews.UploadSessionView;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -84,12 +86,14 @@ public class DataUploadServiceImpl implements DataUploadService {
             String dataType,
             String sourceFingerprint,
             String robotType,
+            BigDecimal durationSeconds,
             MultipartFile file,
             long userId
     ) {
         requireProject(projectId, userId);
         requireStorage(storageKey);
         UploadInput input = validate(dataType, robotType, file.getOriginalFilename(), file.getContentType(), file.getSize());
+        BigDecimal normalizedDuration = normalizeDuration(input.dataType(), durationSeconds);
         if (file.getSize() > MULTIPART_THRESHOLD) {
             throw new BusinessException(ErrorCode.PAYLOAD_TOO_LARGE, "Large files must use multipart upload");
         }
@@ -110,7 +114,7 @@ public class DataUploadServiceImpl implements DataUploadService {
             return transactionTemplate.execute(status -> repository.createDirectDataset(
                     projectId, storageKey, input.dataType(), input.fileName(), input.contentType(),
                     file.getSize(), objectKey, sourceFingerprint, normalizeRobotType(robotType),
-                    datasetStatus(input.dataType()), userId, storage.bucket(), etag
+                    normalizedDuration, datasetStatus(input.dataType()), userId, storage.bucket(), etag
             ));
         } catch (RuntimeException exception) {
             safelyRemove(objectKey);
@@ -126,6 +130,7 @@ public class DataUploadServiceImpl implements DataUploadService {
                 request.dataType(), request.robotType(), request.fileName(),
                 request.contentType(), request.totalSize()
         );
+        BigDecimal durationSeconds = normalizeDuration(input.dataType(), request.durationSeconds());
         DatasetView duplicate = repository.findDuplicate(
                 request.projectId(), datasetName(input.fileName()), request.sourceFingerprint()
         );
@@ -142,7 +147,7 @@ public class DataUploadServiceImpl implements DataUploadService {
                 id, request.projectId(), request.storageKey(), input.dataType(), input.fileName(),
                 input.contentType(), request.totalSize(), CHUNK_SIZE, chunks,
                 finalObjectKey(request.projectId(), input.fileName()), request.sourceFingerprint(),
-                normalizeRobotType(request.robotType()), "PENDING", userId,
+                normalizeRobotType(request.robotType()), durationSeconds, "PENDING", userId,
                 OffsetDateTime.now(ZoneOffset.UTC).plusHours(24)
         );
         repository.createSession(session);
@@ -311,6 +316,19 @@ public class DataUploadServiceImpl implements DataUploadService {
 
     private String normalizeRobotType(String robotType) {
         return StringUtils.hasText(robotType) ? robotType.trim() : null;
+    }
+
+    private BigDecimal normalizeDuration(String dataType, BigDecimal durationSeconds) {
+        if (durationSeconds == null) {
+            if ("VIDEO".equals(dataType)) {
+                throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "Video duration is required");
+            }
+            return null;
+        }
+        if (durationSeconds.signum() <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "Media duration must be greater than zero");
+        }
+        return durationSeconds.setScale(3, RoundingMode.HALF_UP);
     }
 
     private String finalObjectKey(long projectId, String fileName) {

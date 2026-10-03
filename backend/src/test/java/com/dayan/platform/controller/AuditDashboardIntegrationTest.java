@@ -279,7 +279,11 @@ class AuditDashboardIntegrationTest extends PostgreSqlIntegrationTestSupport {
                 .andExpect(jsonPath("$.data.totalFiles").value(totalFiles))
                 .andExpect(jsonPath("$.data.totalFileSizeBytes").value(totalFileSize))
                 .andExpect(jsonPath("$.data.recentOperationCount").value(recentOperations))
-                .andExpect(jsonPath("$.data.recentOperations[0].module").value("FILE"));
+                .andExpect(jsonPath("$.data.recentOperations[0].module").value("FILE"))
+                .andExpect(jsonPath("$.data.dataMetricsAvailable").value(true))
+                .andExpect(jsonPath("$.data.projectDistributionAvailable").value(true))
+                .andExpect(jsonPath("$.data.dataGrowthTrend.length()").value(30))
+                .andExpect(jsonPath("$.data.annotationGrowthTrend.length()").value(30));
     }
 
     private long insertUser(String username, String password) {

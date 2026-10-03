@@ -3,7 +3,6 @@ import {
   Connection,
   Delete,
   Edit,
-  Files,
   Plus,
   Refresh,
   Star,
@@ -11,7 +10,6 @@ import {
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatePanel from '@/components/StatePanel.vue'
 import {
@@ -24,7 +22,6 @@ import {
   updateStorage,
 } from '@/services/storages'
 import { confirmAction, getErrorMessage, notifyError } from '@/services/feedback'
-import { useAuthStore } from '@/stores/auth'
 import type {
   CloudStorage,
   CloudStorageOverview,
@@ -35,12 +32,11 @@ import type {
 import { formatBytes, formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
-const router = useRouter()
-const auth = useAuthStore()
 
 const providers: StorageProvider[] = [
   'TENCENT_COS',
   'ALIYUN_OSS',
+  'VOLCENGINE_TOS',
   'HUAWEI_OBS',
   'AWS_S3',
   'AZURE_BLOB',
@@ -154,13 +150,14 @@ function openEdit(storage: CloudStorage) {
 }
 
 function applyProviderDefaults(provider: StorageProvider) {
-  if (form.endpoint) return
   const endpoints: Partial<Record<StorageProvider, string>> = {
+    VOLCENGINE_TOS: 'https://tos-s3-cn-beijing.volces.com',
     AWS_S3: 'https://s3.amazonaws.com',
     AZURE_BLOB: 'https://account.blob.core.windows.net',
     MINIO: 'http://localhost:9000',
   }
   form.endpoint = endpoints[provider] ?? ''
+  form.region = provider === 'VOLCENGINE_TOS' ? 'cn-beijing' : ''
 }
 
 async function save() {
@@ -255,13 +252,6 @@ onMounted(load)
       :description="t('storages.description')"
     >
       <template #actions>
-        <el-button
-          v-if="auth.hasPermission('file:view')"
-          :icon="Files"
-          @click="router.push('/files')"
-        >
-          {{ t('storages.fileManagement') }}
-        </el-button>
         <el-button
           v-permission="'basic:storage:create'"
           type="primary"

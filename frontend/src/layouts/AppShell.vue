@@ -9,6 +9,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import NavigationTree from '@/components/NavigationTree.vue'
+import SkinSwitcher from '@/components/SkinSwitcher.vue'
 import { confirmAction, notifyError } from '@/services/feedback'
 import { useAuthStore } from '@/stores/auth'
 import { useLayoutStore } from '@/stores/layout'
@@ -83,19 +84,28 @@ async function handleLogout() {
           class="brand__mark"
           aria-hidden="true"
         >
-          <span />
-          <span />
+          <i class="brand__joint brand__joint--base" />
+          <i class="brand__arm brand__arm--lower" />
+          <i class="brand__joint brand__joint--elbow" />
+          <i class="brand__arm brand__arm--upper" />
+          <i class="brand__joint brand__joint--tool" />
         </div>
         <div class="brand__copy">
-          <strong>{{ t('app.brand') }}</strong>
-          <span>{{ t('app.platform') }}</span>
+          <div>
+            <strong>{{ t('app.brand') }}</strong>
+            <span>{{ t('app.platform') }}</span>
+          </div>
+          <small>{{ t('app.domain') }}</small>
         </div>
       </div>
 
       <nav class="navigation">
-        <p class="navigation__label">
-          {{ t('shell.workspace') }}
-        </p>
+        <div class="navigation__heading">
+          <p class="navigation__label">
+            {{ t('shell.workspace') }}
+          </p>
+          <span>{{ t('shell.controlBus') }}</span>
+        </div>
         <NavigationTree
           v-if="navigation.length"
           :items="navigation"
@@ -110,10 +120,14 @@ async function handleLogout() {
       </nav>
 
       <div class="sidebar__footer">
-        <span
-          class="status-dot status-dot--online"
+        <div
+          class="system-signal"
           aria-hidden="true"
-        />
+        >
+          <i />
+          <i />
+          <i />
+        </div>
         <div class="sidebar__status">
           <strong>{{ t('shell.identityVerified') }}</strong>
           <span>{{ t('shell.permissionsSynced') }}</span>
@@ -181,6 +195,7 @@ async function handleLogout() {
             >{{ accountInitial }}</span>
             <span class="account__label">{{ displayName }}</span>
           </RouterLink>
+          <SkinSwitcher />
           <LanguageSwitcher />
           <el-tooltip
             :content="t('shell.logout.title')"
@@ -209,7 +224,7 @@ async function handleLogout() {
 
 <style scoped>
 .app-shell {
-  --sidebar-width: 232px;
+  --sidebar-width: 252px;
   min-height: 100svh;
   background: var(--color-canvas);
 }
@@ -222,113 +237,238 @@ async function handleLogout() {
   width: var(--sidebar-width);
   flex-direction: column;
   overflow: hidden;
-  color: #d9e1e8;
-  background: var(--color-ink);
+  border-right: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text);
+  background: var(--sidebar-surface);
+  box-shadow: 10px 0 28px rgb(25 49 52 / 7%);
   transition: width 180ms ease, transform 220ms ease;
 }
 
 .brand {
   display: flex;
-  min-height: 64px;
+  min-height: 82px;
   align-items: center;
-  gap: 11px;
-  padding: 0 20px;
-  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  gap: 14px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--sidebar-border);
   white-space: nowrap;
 }
 
 .brand__mark {
   position: relative;
-  width: 29px;
-  min-width: 29px;
-  height: 24px;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  border: 1px solid color-mix(in srgb, var(--sidebar-accent) 32%, var(--sidebar-border));
+  border-radius: 6px;
+  background: var(--sidebar-panel);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 55%);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
-.brand__mark span {
+.brand:hover .brand__mark {
+  border-color: color-mix(in srgb, var(--sidebar-accent) 70%, var(--sidebar-border));
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 72%),
+    0 6px 18px rgb(8 127 131 / 13%);
+  transform: translateY(-1px);
+}
+
+.brand__joint {
   position: absolute;
-  width: 18px;
-  height: 8px;
-  border: 2px solid var(--color-accent-soft);
-  border-left: 0;
-  border-radius: 0 12px 12px 0;
-  transform: rotate(-18deg);
+  z-index: 2;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--sidebar-accent);
+  border-radius: 50%;
+  background: var(--sidebar-panel);
+  box-shadow: 0 0 0 2px rgb(8 127 131 / 10%);
+  animation: brand-joint-pulse 2.8s ease-in-out infinite;
 }
 
-.brand__mark span:first-child {
-  top: 2px;
-  left: 1px;
+.brand__joint--base {
+  left: 7px;
+  bottom: 7px;
+  animation-delay: 0ms;
 }
 
-.brand__mark span:last-child {
-  right: 0;
-  bottom: 2px;
-  transform: rotate(18deg) scaleX(-1);
+.brand__joint--elbow {
+  top: 17px;
+  left: 18px;
+  animation-delay: 520ms;
+}
+
+.brand__joint--tool {
+  top: 8px;
+  right: 7px;
+  border-color: var(--sidebar-safety);
+  animation-delay: 1040ms;
+}
+
+.brand__arm {
+  position: absolute;
+  z-index: 1;
+  height: 2px;
+  overflow: visible;
+  background: var(--sidebar-signal);
+  transform-origin: left center;
+}
+
+.brand__arm::after {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sidebar-safety);
+  box-shadow: 0 0 8px rgb(168 189 54 / 52%);
+  content: '';
+  opacity: 0;
+  animation: brand-energy-flow 2.8s ease-in-out infinite;
+}
+
+.brand__arm--lower {
+  bottom: 13px;
+  left: 12px;
+  width: 17px;
+  transform: rotate(-47deg);
+}
+
+.brand__arm--lower::after {
+  animation-delay: 220ms;
+}
+
+.brand__arm--upper {
+  top: 17px;
+  left: 24px;
+  width: 14px;
+  transform: rotate(-35deg);
+}
+
+.brand__arm--upper::after {
+  animation-delay: 760ms;
 }
 
 .brand__copy {
   display: flex;
-  align-items: baseline;
-  gap: 7px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
   opacity: 1;
   transition: opacity 120ms ease;
 }
 
+.brand__copy div {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
 .brand__copy strong {
-  color: #fff;
-  font-size: 17px;
-  letter-spacing: 0.08em;
+  color: var(--sidebar-text);
+  font-size: 18px;
+  font-weight: 680;
+  letter-spacing: 0;
 }
 
 .brand__copy span {
-  color: #8f9ca8;
+  color: var(--sidebar-muted);
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
+}
+
+.brand__copy small {
+  color: var(--sidebar-accent);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0;
 }
 
 .navigation {
   flex: 1;
-  padding: 20px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 22px 14px 18px;
+  scrollbar-color: #b8cac7 transparent;
+  scrollbar-width: thin;
+}
+
+.navigation__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 8px 13px;
+  transition: opacity 120ms ease;
 }
 
 .navigation__label {
-  margin: 0 10px 8px;
-  color: #758390;
+  margin: 0;
+  color: var(--sidebar-muted);
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  transition: opacity 120ms ease;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.navigation__heading > span {
+  color: var(--sidebar-subtle);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0;
 }
 
 .navigation__empty {
   margin: 13px 10px;
-  color: #6f7d88;
+  color: var(--sidebar-muted);
   font-size: 11px;
   line-height: 1.6;
 }
 
 .sidebar__footer {
   display: flex;
-  min-height: 66px;
+  min-height: 78px;
   align-items: center;
-  gap: 10px;
-  padding: 0 20px;
-  border-top: 1px solid rgb(255 255 255 / 8%);
+  gap: 12px;
+  padding: 0 18px;
+  border-top: 1px solid var(--sidebar-border);
+  background: var(--sidebar-panel);
   white-space: nowrap;
 }
 
-.status-dot {
-  width: 7px;
-  height: 7px;
+.system-signal {
+  display: flex;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
-  border: 2px solid #586875;
-  border-radius: 50%;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 6px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 5px;
+  background: var(--sidebar-surface);
 }
 
-.status-dot--online {
-  border-color: var(--color-accent-soft);
-  background: var(--color-accent-soft);
-  box-shadow: 0 0 0 3px rgb(112 185 199 / 10%);
+.system-signal i {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--sidebar-signal);
+  animation: system-signal 1.8s ease-in-out infinite;
+}
+
+.system-signal i:first-child {
+  height: 6px;
+}
+
+.system-signal i:nth-child(2) {
+  height: 12px;
+  animation-delay: 180ms;
+}
+
+.system-signal i:last-child {
+  height: 9px;
+  animation-delay: 360ms;
 }
 
 .sidebar__status {
@@ -339,12 +479,68 @@ async function handleLogout() {
 }
 
 .sidebar__status strong {
-  color: #c4ced6;
-  font-weight: 500;
+  color: var(--sidebar-text);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .sidebar__status span {
-  color: #71808d;
+  color: var(--sidebar-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+@keyframes system-signal {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scaleY(0.7);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes brand-joint-pulse {
+  0%,
+  18%,
+  100% {
+    opacity: 0.68;
+    box-shadow: 0 0 0 2px rgb(8 127 131 / 10%);
+  }
+
+  28%,
+  40% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 3px rgb(8 127 131 / 12%),
+      0 0 10px rgb(8 127 131 / 36%);
+  }
+}
+
+@keyframes brand-energy-flow {
+  0%,
+  14% {
+    opacity: 0;
+    transform: translateX(0) scale(0.6);
+  }
+
+  22% {
+    opacity: 1;
+  }
+
+  42% {
+    opacity: 0;
+    transform: translateX(calc(100% + 10px)) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(calc(100% + 10px)) scale(0.6);
+  }
 }
 
 .shell-content {
@@ -475,11 +671,12 @@ async function handleLogout() {
 }
 
 .app-shell--collapsed .brand {
-  padding-inline: 21px;
+  justify-content: center;
+  padding-inline: 0;
 }
 
 .app-shell--collapsed .brand__copy,
-.app-shell--collapsed .navigation__label,
+.app-shell--collapsed .navigation__heading,
 .app-shell--collapsed .navigation__empty,
 .app-shell--collapsed .sidebar__status {
   width: 0;
@@ -504,13 +701,22 @@ async function handleLogout() {
   padding-inline: 0;
 }
 
+.app-shell--collapsed .navigation {
+  padding-inline: 9px;
+}
+
+.app-shell--collapsed :deep(.navigation-tree--root::before),
+.app-shell--collapsed :deep(.navigation-tree--root > li::before) {
+  display: none;
+}
+
 .navigation-scrim {
   display: none;
 }
 
 @media (max-width: 760px) {
   .sidebar {
-    width: 232px;
+    width: 268px;
     transform: translateX(-100%);
   }
 
@@ -567,7 +773,11 @@ async function handleLogout() {
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar,
-  .shell-content {
+  .shell-content,
+  .system-signal i,
+  .brand__joint,
+  .brand__arm::after {
+    animation: none;
     transition: none;
   }
 }

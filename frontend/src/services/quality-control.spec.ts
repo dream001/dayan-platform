@@ -50,6 +50,7 @@ describe('quality control API contracts', () => {
       description: '',
       scope: 'PROJECT',
       projectId: 3,
+      dataType: 'MCAP',
       datasetPattern: '*.mcap',
       enabled: true,
       priority: 100,

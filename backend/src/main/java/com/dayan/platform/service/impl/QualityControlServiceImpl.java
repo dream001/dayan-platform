@@ -47,8 +47,20 @@ import org.springframework.util.StringUtils;
 @Service
 public class QualityControlServiceImpl implements QualityControlService {
 
-    private static final String ALGORITHM = "MCAP_STRUCTURAL";
+    private static final Set<String> DATA_TYPES = Set.of(
+            "MCAP", "BAG", "VIDEO", "AUDIO", "IMAGE", "HDF5",
+            "LEROBOT", "MEITUAN", "LUMOS", "ZC0TOUCH",
+            "SENSEXPERIENCE", "BVH"
+    );
+    private static final Set<String> GENERIC_METRICS = Set.of(
+            "file_size_bytes",
+            "checksum_valid",
+            "decode_error_count"
+    );
     private static final Set<String> GLOBAL_METRICS = Set.of(
+            "file_size_bytes",
+            "checksum_valid",
+            "decode_error_count",
             "record_duration_sec",
             "timestamp_monotonic_violations",
             "frame_rate",
@@ -162,7 +174,12 @@ public class QualityControlServiceImpl implements QualityControlService {
     @Transactional(readOnly = true)
     public List<DatasetOption> datasetOptions(long userId, boolean admin) {
         return mapper.selectDatasets(userId, admin).stream()
-                .map(row -> new DatasetOption(row.getId(), row.getName(), row.getProjectName()))
+                .map(row -> new DatasetOption(
+                        row.getId(),
+                        row.getName(),
+                        row.getProjectName(),
+                        row.getDataType()
+                ))
                 .toList();
     }
 
@@ -175,7 +192,7 @@ public class QualityControlServiceImpl implements QualityControlService {
             boolean admin
     ) {
         if (mapper.selectAccessibleDataset(datasetId, userId, admin) == null) {
-            throw notFound("MCAP dataset not found or inaccessible");
+            throw notFound("Dataset not found or inaccessible");
         }
         List<RuleRow> matching = mapper.selectMatchingRules(datasetId);
         Set<Long> selected = ruleIds == null ? Set.of() : new HashSet<>(ruleIds);
@@ -345,12 +362,21 @@ public class QualityControlServiceImpl implements QualityControlService {
         if (pattern.contains("%") || pattern.contains("_")) {
             throw invalid("Dataset pattern supports only * and ? wildcards");
         }
+        String dataType = upper(request.dataType());
+        if (!DATA_TYPES.contains(dataType)) {
+            throw invalid("Unsupported quality data type");
+        }
         for (AssertionRequest assertion : request.assertions()) {
-            validateAssertion(assertion);
+            validateAssertion(assertion, dataType);
         }
     }
 
-    private void validateAssertion(AssertionRequest assertion) {
+    private void validateAssertion(AssertionRequest assertion, String dataType) {
+        if (!"MCAP".equals(dataType)
+                && (assertion.type() != AssertionType.NUMERIC
+                || assertion.metricScope() != MetricScope.ALL)) {
+            throw invalid("Non-MCAP datasets support only global numeric assertions");
+        }
         if (assertion.type() == AssertionType.NUMERIC) {
             String metric = normalize(assertion.metric());
             if (metric == null || assertion.threshold() == null
@@ -359,6 +385,9 @@ public class QualityControlServiceImpl implements QualityControlService {
             }
             if (assertion.metricScope() == MetricScope.ALL && !GLOBAL_METRICS.contains(metric)) {
                 throw invalid("The selected metric is not a global metric");
+            }
+            if (!"MCAP".equals(dataType) && !GENERIC_METRICS.contains(metric)) {
+                throw invalid("The selected metric is not available for this data type");
             }
             if (assertion.metricScope() != MetricScope.ALL && !TOPIC_METRICS.contains(metric)) {
                 throw invalid("The selected metric is not a topic metric");
@@ -480,8 +509,11 @@ public class QualityControlServiceImpl implements QualityControlService {
         rule.setDescription(normalize(request.description()));
         rule.setScope(request.scope().name());
         rule.setProjectId(request.scope() == RuleScope.PROJECT ? request.projectId() : null);
+        rule.setDataType(upper(request.dataType()));
         rule.setDatasetPattern(request.datasetPattern().trim());
-        rule.setAlgorithmCode(ALGORITHM);
+        rule.setAlgorithmCode("MCAP".equals(rule.getDataType())
+                ? "MCAP_STRUCTURAL"
+                : "DATASET_INTEGRITY");
         rule.setEnabled(request.enabled());
         rule.setPriority(request.priority());
         rule.setAssertionsJson(write(request.assertions()));
@@ -498,6 +530,7 @@ public class QualityControlServiceImpl implements QualityControlService {
                 row.getScope(),
                 row.getProjectId(),
                 row.getProjectName(),
+                row.getDataType(),
                 row.getDatasetPattern(),
                 row.getAlgorithmCode(),
                 Boolean.TRUE.equals(row.getEnabled()),

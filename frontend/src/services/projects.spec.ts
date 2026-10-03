@@ -2,6 +2,7 @@ import type { InternalAxiosRequestConfig } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   changeProjectStatus,
+  getProjectUserOptions,
   getProjects,
   saveProjectMember,
 } from './projects'
@@ -87,5 +88,28 @@ describe('project API contracts', () => {
         },
       },
     ])
+  })
+
+  it('filters member candidates by personnel type', async () => {
+    http.defaults.adapter = async (config) => {
+      expect(config.url).toBe('/basic/projects/7/user-options')
+      expect(config.params).toEqual({
+        personnelType: 'ANNOTATOR',
+        keyword: undefined,
+      })
+      return apiResponse(config, [{
+        id: 12,
+        username: 'annotator',
+        displayName: 'Annotator',
+        personnelType: 'ANNOTATOR',
+      }])
+    }
+
+    await expect(getProjectUserOptions(7, 'ANNOTATOR')).resolves.toEqual([{
+      id: 12,
+      username: 'annotator',
+      displayName: 'Annotator',
+      personnelType: 'ANNOTATOR',
+    }])
   })
 })

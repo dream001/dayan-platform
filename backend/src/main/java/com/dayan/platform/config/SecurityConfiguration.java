@@ -89,6 +89,7 @@ public class SecurityConfiguration {
                         .accessDeniedHandler(forbidden))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.POST, api + "/auth/login", api + "/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, api + "/basic/devices/agent/report").permitAll()
                         .requestMatchers(
                                 api + "/system/info",
                                 api + "/missing",
@@ -111,7 +112,12 @@ public class SecurityConfiguration {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.security().allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Request-Id"));
+        configuration.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "X-Request-Id",
+                "X-Agent-Token"
+        ));
         configuration.setExposedHeaders(List.of(properties.api().requestIdHeader()));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

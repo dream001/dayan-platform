@@ -12,8 +12,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.minio.StatObjectArgs;
 import java.nio.charset.StandardCharsets;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -142,6 +146,60 @@ class DataUploadIntegrationTest extends PostgreSqlIntegrationTestSupport {
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM data_dataset", Long.class)).isEqualTo(2);
     }
 
+    @ParameterizedTest(name = "{0} accepts {1}")
+    @MethodSource("uploadFormats")
+    void uploadsEverySupportedDatasetType(
+            String dataType,
+            String fileName,
+            String contentType,
+            String expectedStatus,
+            String robotType
+    ) throws Exception {
+        String token = login();
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                fileName,
+                contentType,
+                ("sample-" + dataType).getBytes(StandardCharsets.UTF_8)
+        );
+        var request = multipart(BASE + "/direct")
+                .file(file)
+                .param("projectId", String.valueOf(projectId))
+                .param("storageKey", "minio-default")
+                .param("dataType", dataType)
+                .param("sourceFingerprint", "format-" + dataType.toLowerCase())
+                .header("Authorization", bearer(token));
+        if (robotType != null) {
+            request.param("robotType", robotType);
+        }
+        if ("VIDEO".equals(dataType)) {
+            request.param("durationSeconds", "12.345");
+        }
+
+        MvcResult result = mockMvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dataType").value(dataType))
+                .andExpect(jsonPath("$.data.originalName").value(fileName))
+                .andExpect(jsonPath("$.data.contentType").value(contentType))
+                .andExpect(jsonPath("$.data.status").value(expectedStatus))
+                .andReturn();
+        long datasetId = data(result).path("id").asLong();
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM data_dataset WHERE id = ? AND data_type = ?",
+                Long.class,
+                datasetId,
+                dataType
+        )).isOne();
+        if ("VIDEO".equals(dataType)) {
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT duration_seconds FROM data_dataset WHERE id = ?",
+                    java.math.BigDecimal.class,
+                    datasetId
+            )).isEqualByComparingTo("12.345");
+        }
+    }
+
     @Test
     void pausesResumesAndCompletesMultipartUpload() throws Exception {
         String token = login();
@@ -221,5 +279,22 @@ class DataUploadIntegrationTest extends PostgreSqlIntegrationTestSupport {
 
     private String bearer(String token) {
         return "Bearer " + token;
+    }
+
+    private static Stream<Arguments> uploadFormats() {
+        return Stream.of(
+                Arguments.of("MCAP", "sample.mcap", "application/octet-stream", "READY", null),
+                Arguments.of("BAG", "sample.bag", "application/octet-stream", "PROCESSING", null),
+                Arguments.of("VIDEO", "sample.mp4", "video/mp4", "PROCESSING", null),
+                Arguments.of("AUDIO", "sample.mp3", "audio/mpeg", "PROCESSING", null),
+                Arguments.of("IMAGE", "sample.png", "image/png", "READY", null),
+                Arguments.of("HDF5", "sample.h5", "application/x-hdf5", "PROCESSING", "generic"),
+                Arguments.of("LEROBOT", "lerobot.tar", "application/x-tar", "PROCESSING", null),
+                Arguments.of("MEITUAN", "meituan.tar", "application/x-tar", "PROCESSING", null),
+                Arguments.of("LUMOS", "sample.lumos", "application/octet-stream", "PROCESSING", null),
+                Arguments.of("ZC0TOUCH", "sample.zc0touch", "application/octet-stream", "PROCESSING", null),
+                Arguments.of("SENSEXPERIENCE", "sense.tar", "application/x-tar", "PROCESSING", null),
+                Arguments.of("BVH", "sample.bvh", "text/plain", "READY", null)
+        );
     }
 }

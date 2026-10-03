@@ -5,6 +5,7 @@ import com.dayan.platform.dto.RbacDtos.UserCreateRequest;
 import com.dayan.platform.dto.RbacDtos.UserUpdateRequest;
 import com.dayan.platform.vo.PageResponse;
 import com.dayan.platform.vo.RbacViews.UserFilterOptions;
+import com.dayan.platform.vo.RbacViews.UserRoleCounts;
 import com.dayan.platform.vo.RbacViews.UserSummary;
 import java.util.List;
 import java.util.Set;
@@ -22,6 +23,13 @@ public interface UserManagementService {
     );
 
     UserFilterOptions filterOptions();
+
+    UserRoleCounts roleCounts(
+            String keyword,
+            Long departmentId,
+            Boolean enabled,
+            Long projectId
+    );
 
     UserSummary detail(long id);
 

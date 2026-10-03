@@ -1,7 +1,7 @@
 package com.dayan.platform.repository.mapper;
 
-import com.dayan.platform.model.UserAccount;
 import com.dayan.platform.repository.query.ProjectMemberRow;
+import com.dayan.platform.vo.ProjectViews.ProjectUserOption;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Delete;
@@ -103,16 +103,62 @@ public interface ProjectMemberMapper {
 
     @Select("""
             <script>
-            SELECT id, username, display_name
-            FROM sys_user
-            WHERE enabled = TRUE
+            SELECT
+              u.id,
+              u.username,
+              u.display_name,
+              COALESCE(
+                #{personnelType},
+                (
+                  SELECT role.code
+                  FROM sys_user_role user_role
+                  JOIN sys_role role ON role.id = user_role.role_id AND role.enabled = TRUE
+                  WHERE user_role.user_id = u.id
+                  ORDER BY
+                    CASE role.code
+                      WHEN 'SUPER_ADMIN' THEN 1
+                      WHEN 'MANAGER' THEN 2
+                      WHEN 'COLLECTOR' THEN 3
+                      WHEN 'ANNOTATOR' THEN 4
+                      WHEN 'AUDITOR' THEN 5
+                      ELSE 6
+                    END,
+                    role.id
+                  LIMIT 1
+                ),
+                'GUEST'
+              ) AS personnel_type
+            FROM sys_user u
+            WHERE u.enabled = TRUE
+              <choose>
+                <when test="personnelType == 'GUEST'">
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM sys_user_role user_role
+                    JOIN sys_role role ON role.id = user_role.role_id AND role.enabled = TRUE
+                    WHERE user_role.user_id = u.id
+                  )
+                </when>
+                <when test="personnelType != null and personnelType != ''">
+                  AND EXISTS (
+                    SELECT 1
+                    FROM sys_user_role user_role
+                    JOIN sys_role role ON role.id = user_role.role_id AND role.enabled = TRUE
+                    WHERE user_role.user_id = u.id
+                      AND role.code = #{personnelType}
+                  )
+                </when>
+              </choose>
               <if test="keyword != null and keyword != ''">
-                AND (username ILIKE '%' || #{keyword} || '%'
-                     OR display_name ILIKE '%' || #{keyword} || '%')
+                AND (u.username ILIKE '%' || #{keyword} || '%'
+                     OR u.display_name ILIKE '%' || #{keyword} || '%')
               </if>
-            ORDER BY display_name, id
+            ORDER BY u.display_name, u.id
             LIMIT 50
             </script>
             """)
-    List<UserAccount> selectUserOptions(@Param("keyword") String keyword);
+    List<ProjectUserOption> selectUserOptions(
+            @Param("keyword") String keyword,
+            @Param("personnelType") String personnelType
+    );
 }

@@ -61,6 +61,65 @@ services:
     networks:
       - dayan-network
 
+  mqtt-init:
+    image: eclipse-mosquitto:2.0
+    restart: "no"
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME:-dayan_mqtt}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-DayanMqtt_2026_Strong!}
+    volumes:
+      - mqtt_config:/mosquitto/config
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        cat > /mosquitto/config/mosquitto.conf <<'EOF'
+        persistence true
+        persistence_location /mosquitto/data/
+        log_dest stdout
+        allow_anonymous false
+        password_file /mosquitto/config/password_file
+        listener 1883 0.0.0.0
+        protocol mqtt
+        listener 9001 0.0.0.0
+        protocol websockets
+        EOF
+        mosquitto_passwd -b -c /mosquitto/config/password_file \
+          "$${MQTT_USERNAME}" "$${MQTT_PASSWORD}"
+        chmod 0640 /mosquitto/config/password_file
+        chown -R 1883:1883 /mosquitto/config
+    networks:
+      - dayan-network
+
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    restart: unless-stopped
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME:-dayan_mqtt}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-DayanMqtt_2026_Strong!}
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+      - "${MQTT_WEBSOCKET_PORT:-9003}:9001"
+    volumes:
+      - mqtt_config:/mosquitto/config:ro
+      - mqtt_data:/mosquitto/data
+      - mqtt_log:/mosquitto/log
+    depends_on:
+      mqtt-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mosquitto_sub -h 127.0.0.1 -p 1883 -u \"$${MQTT_USERNAME}\" -P \"$${MQTT_PASSWORD}\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null 2>&1"
+        ]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 5s
+    networks:
+      - dayan-network
+
   backend:
     build:
       context: ./backend
@@ -134,6 +193,9 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  mqtt_config:
+  mqtt_data:
+  mqtt_log:
 
 networks:
   dayan-network:

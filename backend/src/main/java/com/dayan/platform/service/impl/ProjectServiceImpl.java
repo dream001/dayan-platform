@@ -38,6 +38,8 @@ public class ProjectServiceImpl implements ProjectService {
 
     private static final Set<String> MANAGEMENT_ROLES =
             Set.of("PROJECT_ADMIN", "PROJECT_MANAGER");
+    private static final Set<String> PERSONNEL_TYPES =
+            Set.of("SUPER_ADMIN", "MANAGER", "COLLECTOR", "ANNOTATOR", "AUDITOR", "GUEST");
     private static final Map<String, Set<String>> STATUS_TRANSITIONS = Map.of(
             "PLANNING", Set.of("ACTIVE", "ARCHIVED"),
             "ACTIVE", Set.of("SUSPENDED", "COMPLETED", "ARCHIVED"),
@@ -281,17 +283,19 @@ public class ProjectServiceImpl implements ProjectService {
     public List<ProjectUserOption> userOptions(
             long id,
             String keyword,
+            String personnelType,
             long operatorId,
             boolean platformAdmin
     ) {
         requireManageable(id, operatorId, platformAdmin);
-        return projectMemberMapper.selectUserOptions(normalizeNullable(keyword)).stream()
-                .map(user -> new ProjectUserOption(
-                        user.getId(),
-                        user.getUsername(),
-                        user.getDisplayName()
-                ))
-                .toList();
+        String normalizedType = normalizeEnum(personnelType);
+        if (normalizedType != null && !PERSONNEL_TYPES.contains(normalizedType)) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "Unsupported personnel type");
+        }
+        return projectMemberMapper.selectUserOptions(
+                normalizeNullable(keyword),
+                normalizedType
+        );
     }
 
     private ProjectSummaryRow requireAccessible(long id, long userId, boolean platformAdmin) {

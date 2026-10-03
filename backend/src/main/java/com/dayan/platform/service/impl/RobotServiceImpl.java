@@ -8,6 +8,7 @@ import com.dayan.platform.model.Robot;
 import com.dayan.platform.repository.mapper.RobotMapper;
 import com.dayan.platform.repository.query.RobotRows.CatalogRow;
 import com.dayan.platform.repository.query.RobotRows.DatasetRow;
+import com.dayan.platform.service.FileService;
 import com.dayan.platform.service.RobotService;
 import com.dayan.platform.vo.RobotViews.RobotDataset;
 import com.dayan.platform.vo.RobotViews.RobotSummary;
@@ -25,9 +26,11 @@ import org.springframework.util.StringUtils;
 public class RobotServiceImpl implements RobotService {
 
     private final RobotMapper robotMapper;
+    private final FileService fileService;
 
-    public RobotServiceImpl(RobotMapper robotMapper) {
+    public RobotServiceImpl(RobotMapper robotMapper, FileService fileService) {
         this.robotMapper = robotMapper;
+        this.fileService = fileService;
     }
 
     @Override
@@ -93,12 +96,25 @@ public class RobotServiceImpl implements RobotService {
     }
 
     private void apply(Robot robot, RobotRequest request) {
-        validateUrl(request.iconUrl(), "iconUrl");
+        if (request.iconFileId() != null) {
+            var icon = fileService.detail(request.iconFileId());
+            if (!icon.contentType().startsWith("image/")) {
+                throw invalid("Robot icon must be an image file");
+            }
+            robot.setIconFileId(request.iconFileId());
+            robot.setIconUrl("file:" + request.iconFileId());
+        } else {
+            if (!StringUtils.hasText(request.iconUrl())) {
+                throw invalid("Robot icon is required");
+            }
+            validateUrl(request.iconUrl(), "iconUrl");
+            robot.setIconFileId(null);
+            robot.setIconUrl(request.iconUrl().trim());
+        }
         if (StringUtils.hasText(request.introductionUrl())) {
             validateUrl(request.introductionUrl(), "introductionUrl");
         }
         robot.setName(request.name().trim());
-        robot.setIconUrl(request.iconUrl().trim());
         robot.setTitleZh(trimToNull(request.titleZh()));
         robot.setTitleEn(trimToNull(request.titleEn()));
         robot.setRobotType(request.robotType().name());
@@ -139,7 +155,10 @@ public class RobotServiceImpl implements RobotService {
         return new RobotSummary(
                 row.id,
                 row.name,
-                row.iconUrl,
+                row.iconFileId == null
+                        ? row.iconUrl
+                        : fileService.preview(row.iconFileId).url(),
+                row.iconFileId,
                 row.titleZh,
                 row.titleEn,
                 row.robotType,

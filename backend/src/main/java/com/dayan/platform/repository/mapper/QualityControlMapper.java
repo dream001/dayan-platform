@@ -138,11 +138,10 @@ public interface QualityControlMapper extends BaseMapper<QualityRule> {
     );
 
     @Select("""
-            SELECT d.id, d.name, p.name AS project_name
+            SELECT d.id, d.name, d.data_type, p.name AS project_name
             FROM data_dataset d
             LEFT JOIN basic_project p ON p.id = d.project_id
             WHERE d.deleted = FALSE
-              AND d.data_type = 'MCAP'
               AND (#{admin} = TRUE OR d.uploader_id = #{userId} OR EXISTS (
                   SELECT 1 FROM basic_project_member pm
                   WHERE pm.project_id = d.project_id AND pm.user_id = #{userId}
@@ -158,12 +157,11 @@ public interface QualityControlMapper extends BaseMapper<QualityRule> {
     );
 
     @Select("""
-            SELECT d.id, d.name, p.name AS project_name
+            SELECT d.id, d.name, d.data_type, p.name AS project_name
             FROM data_dataset d
             LEFT JOIN basic_project p ON p.id = d.project_id
             WHERE d.id = #{datasetId}
               AND d.deleted = FALSE
-              AND d.data_type = 'MCAP'
               AND (#{admin} = TRUE OR d.uploader_id = #{userId} OR EXISTS (
                   SELECT 1 FROM basic_project_member pm
                   WHERE pm.project_id = d.project_id AND pm.user_id = #{userId}
@@ -185,6 +183,7 @@ public interface QualityControlMapper extends BaseMapper<QualityRule> {
             JOIN sys_user u ON u.id = r.creator_id
             WHERE r.enabled = TRUE
               AND (r.scope = 'GLOBAL' OR r.project_id = d.project_id)
+              AND r.data_type = d.data_type
               AND d.name LIKE replace(replace(r.dataset_pattern, '*', '%'), '?', '_')
             ORDER BY r.priority, r.id
             """)

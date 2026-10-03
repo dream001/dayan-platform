@@ -31,6 +31,7 @@ import { confirmAction, getErrorMessage, notifyError } from '@/services/feedback
 import { useAuthStore } from '@/stores/auth'
 import type {
   DataAccessLevel,
+  PersonnelType,
   ProjectDetail,
   ProjectMember,
   ProjectPayload,
@@ -80,6 +81,15 @@ const form = reactive<ProjectPayload>({
   qualityThreshold: 90,
   reviewMode: 'SINGLE_REVIEW',
   notificationEnabled: true,
+})
+const projectDateRange = computed<[string, string] | null>({
+  get: () => form.startDate && form.endDate
+    ? [form.startDate, form.endDate] as [string, string]
+    : null,
+  set: (value: [string, string] | null) => {
+    form.startDate = value?.[0] ?? null
+    form.endDate = value?.[1] ?? null
+  },
 })
 const projectRules = computed<FormRules<ProjectPayload>>(() => ({
   name: [
@@ -159,13 +169,32 @@ const membersLoading = ref(false)
 
 const memberDialogOpen = ref(false)
 const memberSaving = ref(false)
+const userOptionsLoading = ref(false)
 const userOptions = ref<ProjectUserOption[]>([])
+const personnelTypes: PersonnelType[] = [
+  'SUPER_ADMIN',
+  'MANAGER',
+  'COLLECTOR',
+  'ANNOTATOR',
+  'AUDITOR',
+  'GUEST',
+]
 const memberForm = reactive({
+  personnelType: null as PersonnelType | null,
   userId: null as number | null,
   role: 'ANNOTATOR' as ProjectRole,
   dataAccessLevel: 'READ_WRITE' as DataAccessLevel,
   validFrom: null as string | null,
   validUntil: null as string | null,
+})
+const memberValidityRange = computed<[string, string] | null>({
+  get: () => memberForm.validFrom && memberForm.validUntil
+    ? [memberForm.validFrom, memberForm.validUntil] as [string, string]
+    : null,
+  set: (value: [string, string] | null) => {
+    memberForm.validFrom = value?.[0] ?? null
+    memberForm.validUntil = value?.[1] ?? null
+  },
 })
 
 const canCreate = computed(() => auth.hasPermission('basic:project:create'))
@@ -424,23 +453,54 @@ async function remove(project: ProjectSummary) {
 
 async function openMemberDialog(member?: ProjectMember) {
   if (!detail.value) return
+  userOptions.value = []
   Object.assign(memberForm, {
+    personnelType: null,
     userId: member?.userId ?? null,
     role: member?.role ?? 'ANNOTATOR',
     dataAccessLevel: member?.dataAccessLevel ?? 'READ_WRITE',
     validFrom: member?.validFrom ?? null,
     validUntil: member?.validUntil ?? null,
   })
+  memberDialogOpen.value = true
+  if (!member) return
+  userOptionsLoading.value = true
   try {
-    userOptions.value = await getProjectUserOptions(detail.value.summary.id)
-    memberDialogOpen.value = true
+    const allUsers = await getProjectUserOptions(detail.value.summary.id)
+    const current = allUsers.find((user) => user.id === member.userId)
+    memberForm.personnelType = current?.personnelType ?? 'GUEST'
+    userOptions.value = await getProjectUserOptions(
+      detail.value.summary.id,
+      memberForm.personnelType,
+    )
+    if (current && !userOptions.value.some((user) => user.id === current.id)) {
+      userOptions.value.unshift(current)
+    }
+  } catch (reason) {
+    memberDialogOpen.value = false
+    notifyError(reason, t('projects.userOptionsFailed'))
+  } finally {
+    userOptionsLoading.value = false
+  }
+}
+
+async function selectPersonnelType(value?: PersonnelType) {
+  memberForm.personnelType = value ?? null
+  memberForm.userId = null
+  userOptions.value = []
+  if (!detail.value || !value) return
+  userOptionsLoading.value = true
+  try {
+    userOptions.value = await getProjectUserOptions(detail.value.summary.id, value)
   } catch (reason) {
     notifyError(reason, t('projects.userOptionsFailed'))
+  } finally {
+    userOptionsLoading.value = false
   }
 }
 
 async function saveMember() {
-  if (!detail.value || !memberForm.userId) {
+  if (!detail.value || !memberForm.personnelType || !memberForm.userId) {
     ElMessage.warning(t('projects.memberRequired'))
     return
   }
@@ -459,7 +519,7 @@ async function saveMember() {
     })
     ElMessage.success(t('projects.memberSaved'))
     memberDialogOpen.value = false
-    await Promise.all([loadMembers(), refreshDetail()])
+    await Promise.all([loadMembers(), refreshDetail(), load()])
   } catch (reason) {
     notifyError(reason, t('projects.memberSaveFailed'))
   } finally {
@@ -478,7 +538,7 @@ async function removeMember(member: ProjectMember) {
   try {
     await removeProjectMember(detail.value.summary.id, member.userId)
     ElMessage.success(t('projects.memberRemoved'))
-    await Promise.all([loadMembers(), refreshDetail()])
+    await Promise.all([loadMembers(), refreshDetail(), load()])
   } catch (reason) {
     notifyError(reason, t('projects.memberRemoveFailed'))
   }
@@ -837,24 +897,17 @@ onMounted(load)
                 </el-select>
               </el-form-item>
               <el-form-item
-                :label="t('projects.startDate')"
-                prop="startDate"
-              >
-                <el-date-picker
-                  v-model="form.startDate"
-                  type="date"
-                  value-format="YYYY-MM-DD"
-                  style="width: 100%"
-                />
-              </el-form-item>
-              <el-form-item
-                :label="t('projects.endDate')"
+                class="form-grid__wide"
+                :label="t('projects.period')"
                 prop="endDate"
               >
                 <el-date-picker
-                  v-model="form.endDate"
-                  type="date"
+                  v-model="projectDateRange"
+                  type="daterange"
                   value-format="YYYY-MM-DD"
+                  :range-separator="t('projects.rangeSeparator')"
+                  :start-placeholder="t('projects.startDate')"
+                  :end-placeholder="t('projects.endDate')"
                   style="width: 100%"
                 />
               </el-form-item>
@@ -1282,12 +1335,35 @@ onMounted(load)
         @submit.prevent="saveMember"
       >
         <el-form-item
+          :label="t('projects.personnelType')"
+          required
+        >
+          <el-select
+            :model-value="memberForm.personnelType"
+            :placeholder="t('projects.selectPersonnelType')"
+            style="width: 100%"
+            @update:model-value="selectPersonnelType"
+          >
+            <el-option
+              v-for="type in personnelTypes"
+              :key="type"
+              :label="t(`projects.personnelTypes.${type}`)"
+              :value="type"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item
           :label="t('projects.member')"
           required
         >
           <el-select
             v-model="memberForm.userId"
             filterable
+            :loading="userOptionsLoading"
+            :disabled="!memberForm.personnelType"
+            :placeholder="memberForm.personnelType
+              ? t('projects.selectMember')
+              : t('projects.selectPersonnelTypeFirst')"
             style="width: 100%"
           >
             <el-option
@@ -1325,19 +1401,17 @@ onMounted(load)
               />
             </el-select>
           </el-form-item>
-          <el-form-item :label="t('projects.validFrom')">
+          <el-form-item
+            class="form-grid__wide"
+            :label="t('projects.validityPeriod')"
+          >
             <el-date-picker
-              v-model="memberForm.validFrom"
-              type="datetime"
+              v-model="memberValidityRange"
+              type="datetimerange"
               value-format="YYYY-MM-DDTHH:mm:ssZ"
-              style="width: 100%"
-            />
-          </el-form-item>
-          <el-form-item :label="t('projects.validUntil')">
-            <el-date-picker
-              v-model="memberForm.validUntil"
-              type="datetime"
-              value-format="YYYY-MM-DDTHH:mm:ssZ"
+              :range-separator="t('projects.rangeSeparator')"
+              :start-placeholder="t('projects.validFrom')"
+              :end-placeholder="t('projects.validUntil')"
               style="width: 100%"
             />
           </el-form-item>

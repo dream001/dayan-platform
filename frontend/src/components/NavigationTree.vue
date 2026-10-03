@@ -6,7 +6,9 @@ import {
   CircleCheck,
   Clock,
   Coin,
+  Connection,
   Collection,
+  Cpu,
   DataAnalysis,
   Download,
   EditPen,
@@ -15,6 +17,7 @@ import {
   Lock,
   MagicStick,
   Menu as MenuIcon,
+  Message,
   Monitor,
   OfficeBuilding,
   Reading,
@@ -45,6 +48,8 @@ const iconComponents: Record<string, Component> = {
   export: Download,
   visual: Monitor,
   agent: ChatLineRound,
+  workflow: Connection,
+  message: Message,
   settings: Setting,
   users: User,
   shield: Lock,
@@ -69,6 +74,7 @@ defineEmits<{
 }>()
 
 function resolveIcon(item: NavigationItem): Component {
+  if (item.code === 'basic:view') return Cpu
   return iconComponents[item.icon?.toLowerCase() ?? ''] ?? Collection
 }
 
@@ -98,7 +104,14 @@ watch(
 </script>
 
 <template>
-  <ul class="navigation-tree">
+  <ul
+    class="navigation-tree"
+    :class="{
+      'navigation-tree--root': depth === 0,
+      'navigation-tree--nested': depth > 0,
+    }"
+    :data-depth="depth"
+  >
     <li
       v-for="item in items"
       :key="item.id"
@@ -169,70 +182,124 @@ watch(
 
 <style scoped>
 .navigation-tree {
+  position: relative;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.navigation-tree--root::before {
+  position: absolute;
+  top: 23px;
+  bottom: 23px;
+  left: 4px;
+  width: 1px;
+  background: var(--sidebar-border);
+  content: '';
+}
+
+.navigation-tree--root > li {
+  position: relative;
+}
+
+.navigation-tree--root > li::before {
+  position: absolute;
+  top: 21px;
+  left: 1px;
+  z-index: 2;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--sidebar-subtle);
+  border-radius: 50%;
+  background: var(--sidebar-surface);
+  content: '';
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.navigation-tree--root > li:has(> .router-link-active)::before,
+.navigation-tree--root > li:has(> .navigation-link--active)::before {
+  border-color: var(--sidebar-accent);
+  background: var(--sidebar-safety);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sidebar-accent) 14%, transparent);
 }
 
 .navigation-link {
   position: relative;
   display: flex;
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   padding-right: 10px;
   cursor: pointer;
   border: 0;
-  border-radius: 6px;
-  color: #aeb9c3;
+  border-radius: 5px;
+  color: var(--sidebar-muted);
   background: transparent;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 560;
+  letter-spacing: 0;
   text-align: left;
   text-decoration: none;
   white-space: nowrap;
-  transition: color 140ms ease, background-color 140ms ease;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    transform 140ms ease;
 }
 
-.navigation-link::before {
-  position: absolute;
-  left: -12px;
-  width: 2px;
-  height: 20px;
-  border-radius: 0 2px 2px 0;
-  background: var(--color-accent-soft);
-  content: '';
-  opacity: 0;
+.navigation-tree--root > li > .navigation-link {
+  min-height: 50px;
+  padding-left: 44px !important;
+  font-size: 14px;
+  font-weight: 620;
 }
 
 .navigation-link:hover,
 .navigation-link.router-link-active,
 .navigation-link--active {
-  color: #fff;
-  background: rgb(255 255 255 / 7%);
+  color: var(--sidebar-text);
+  background: var(--sidebar-active);
 }
 
-.navigation-link.router-link-active::before,
-.navigation-link--active::before {
-  opacity: 1;
+.navigation-link:hover {
+  transform: translateX(2px);
 }
 
 .navigation-link__icon {
   flex: 0 0 auto;
-  color: #8294a1;
+  color: var(--sidebar-subtle);
   transition: color 140ms ease;
+}
+
+.navigation-tree--root > li > .navigation-link > .navigation-link__icon {
+  position: absolute;
+  left: 10px;
+  z-index: 3;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 4px;
+  background: var(--sidebar-panel);
 }
 
 .navigation-link:hover .navigation-link__icon,
 .navigation-link.router-link-active .navigation-link__icon,
 .navigation-link--active .navigation-link__icon {
-  color: var(--color-accent-soft);
+  color: var(--sidebar-accent);
+}
+
+.navigation-tree--root > li > .navigation-link.router-link-active > .navigation-link__icon,
+.navigation-tree--root > li > .navigation-link--active > .navigation-link__icon {
+  border-color: color-mix(in srgb, var(--sidebar-accent) 70%, var(--sidebar-border));
+  background: var(--sidebar-active);
 }
 
 .navigation-link__arrow {
   margin-left: auto;
-  color: #61717f;
+  color: var(--sidebar-subtle);
   transition: transform 160ms ease;
 }
 
@@ -242,11 +309,50 @@ watch(
 
 .navigation-group {
   margin: 15px 0 5px;
-  color: #758390;
+  color: var(--sidebar-muted);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   white-space: nowrap;
+}
+
+.navigation-tree--nested {
+  margin: 3px 0 10px 25px;
+  padding: 4px 0 4px 12px;
+  border-left: 1px solid var(--sidebar-border);
+}
+
+.navigation-tree--nested .navigation-link {
+  min-height: 40px;
+  gap: 9px;
+  padding-right: 9px;
+  padding-left: 10px !important;
+  border-radius: 4px;
+  color: var(--sidebar-muted);
+  font-size: 13px;
+  font-weight: 540;
+}
+
+.navigation-tree--nested .navigation-link__icon {
+  width: 17px;
+  font-size: 16px;
+}
+
+.navigation-tree--nested .navigation-link__arrow {
+  color: var(--sidebar-subtle);
+  font-size: 13px;
+}
+
+.navigation-tree--nested .navigation-link.router-link-active {
+  color: var(--sidebar-text);
+  background: var(--sidebar-active);
+  box-shadow: inset 3px 0 var(--sidebar-accent);
+  font-weight: 620;
+}
+
+.navigation-tree--nested .navigation-link:hover {
+  color: var(--sidebar-text);
+  background: color-mix(in srgb, var(--sidebar-active) 74%, var(--sidebar-surface));
 }
 
 .navigation-branch-enter-active,

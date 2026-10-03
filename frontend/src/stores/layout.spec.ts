@@ -4,6 +4,8 @@ import { useLayoutStore } from './layout'
 
 describe('layout store', () => {
   beforeEach(() => {
+    window.localStorage.clear()
+    delete document.documentElement.dataset.skin
     setActivePinia(createPinia())
   })
 
@@ -11,7 +13,7 @@ describe('layout store', () => {
     const store = useLayoutStore()
 
     expect(store.isSidebarCollapsed).toBe(false)
-    expect(store.sidebarWidth).toBe('232px')
+    expect(store.sidebarWidth).toBe('252px')
 
     store.toggleSidebar()
 
@@ -28,5 +30,18 @@ describe('layout store', () => {
 
     store.closeMobileNavigation()
     expect(store.isMobileNavigationOpen).toBe(false)
+  })
+
+  it('applies and persists the selected interface skin', () => {
+    const store = useLayoutStore()
+
+    expect(store.skin).toBe('titanium')
+    expect(document.documentElement.dataset.skin).toBe('titanium')
+
+    store.setSkin('orbit')
+
+    expect(store.skin).toBe('orbit')
+    expect(document.documentElement.dataset.skin).toBe('orbit')
+    expect(window.localStorage.getItem('dayan:skin')).toBe('orbit')
   })
 })

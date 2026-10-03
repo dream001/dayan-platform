@@ -1,10 +1,12 @@
 package com.dayan.platform.controller;
 
 import com.dayan.platform.audit.Audited;
+import com.dayan.platform.dto.AiModelDtos.ModelDebugRequest;
 import com.dayan.platform.dto.AiModelDtos.ModelRequest;
 import com.dayan.platform.dto.AiModelDtos.ModelStatusRequest;
 import com.dayan.platform.dto.AiModelDtos.ModelType;
 import com.dayan.platform.service.AiModelService;
+import com.dayan.platform.vo.AiModelViews.ModelDebugResult;
 import com.dayan.platform.vo.AiModelViews.ModelSummary;
 import com.dayan.platform.vo.AiModelViews.ModelTestResult;
 import com.dayan.platform.vo.PageResponse;
@@ -97,5 +99,15 @@ public class AiModelController {
     @Audited(module = "MODEL", action = "TEST", targetType = "AI_MODEL", targetId = "#id")
     public ModelTestResult test(@PathVariable long id) {
         return modelService.test(id);
+    }
+
+    @PostMapping("/{id}/debug")
+    @PreAuthorize("hasAuthority('basic:model:test')")
+    @Audited(module = "MODEL", action = "DEBUG", targetType = "AI_MODEL", targetId = "#id")
+    public ModelDebugResult debug(
+            @PathVariable long id,
+            @Valid @RequestBody ModelDebugRequest request
+    ) {
+        return modelService.debug(id, request.input());
     }
 }

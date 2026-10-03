@@ -8,6 +8,13 @@ export type ProjectRole =
   | 'REVIEWER'
   | 'OBSERVER'
 export type DataAccessLevel = 'READ_ONLY' | 'READ_WRITE' | 'FULL'
+export type PersonnelType =
+  | 'SUPER_ADMIN'
+  | 'MANAGER'
+  | 'COLLECTOR'
+  | 'ANNOTATOR'
+  | 'AUDITOR'
+  | 'GUEST'
 export type ReviewMode = 'NONE' | 'SINGLE_REVIEW' | 'DOUBLE_REVIEW'
 
 export interface ProjectSummary {
@@ -95,6 +102,7 @@ export interface ProjectUserOption {
   id: number
   username: string
   displayName: string
+  personnelType: PersonnelType
 }
 
 export interface ProjectOverview {

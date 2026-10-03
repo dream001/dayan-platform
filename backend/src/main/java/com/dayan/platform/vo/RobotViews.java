@@ -12,6 +12,7 @@ public final class RobotViews {
             long id,
             String name,
             String iconUrl,
+            Long iconFileId,
             String titleZh,
             String titleEn,
             String robotType,

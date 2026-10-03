@@ -3,6 +3,7 @@ import type {
   AiModel,
   AiModelPayload,
   AiModelQuery,
+  ModelDebugResult,
   ModelTestResult,
 } from '@/types/ai-model'
 import { http } from './http'
@@ -33,4 +34,8 @@ export async function deleteAiModel(id: number) {
 
 export async function testAiModel(id: number) {
   return data(await http.post<ApiResponse<ModelTestResult>>(`/basic/models/${id}/test`))
+}
+
+export async function debugAiModel(id: number, input: string) {
+  return data(await http.post<ApiResponse<ModelDebugResult>>(`/basic/models/${id}/debug`, { input }))
 }

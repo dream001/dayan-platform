@@ -12,6 +12,7 @@ public final class RobotRows {
         public Long id;
         public String name;
         public String iconUrl;
+        public Long iconFileId;
         public String titleZh;
         public String titleEn;
         public String robotType;

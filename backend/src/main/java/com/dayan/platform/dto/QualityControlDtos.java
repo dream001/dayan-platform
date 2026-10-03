@@ -3,6 +3,7 @@ package com.dayan.platform.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -53,6 +54,10 @@ public final class QualityControlDtos {
             @Size(max = 500) String description,
             @NotNull RuleScope scope,
             @Positive Long projectId,
+            @NotBlank
+            @Pattern(regexp = "MCAP|BAG|VIDEO|AUDIO|IMAGE|HDF5|LEROBOT|MEITUAN|"
+                    + "LUMOS|ZC0TOUCH|SENSEXPERIENCE|BVH")
+            String dataType,
             @NotBlank @Size(max = 200) String datasetPattern,
             @NotNull Boolean enabled,
             @NotNull Integer priority,

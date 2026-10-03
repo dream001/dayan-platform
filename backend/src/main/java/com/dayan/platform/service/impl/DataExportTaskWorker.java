@@ -4,6 +4,7 @@ import com.dayan.platform.repository.mapper.DataExportMapper;
 import com.dayan.platform.repository.query.DataExportRows.DatasetRow;
 import com.dayan.platform.repository.query.DataExportRows.TaskRow;
 import com.dayan.platform.repository.storage.ObjectStorage;
+import com.dayan.platform.service.MonitoringService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -21,19 +22,25 @@ public class DataExportTaskWorker {
     private final DataExportMapper exportMapper;
     private final DataExportArchiveBuilder archiveBuilder;
     private final ObjectStorage objectStorage;
+    private final MonitoringService monitoringService;
 
     public DataExportTaskWorker(
             DataExportMapper exportMapper,
             DataExportArchiveBuilder archiveBuilder,
-            ObjectStorage objectStorage
+            ObjectStorage objectStorage,
+            MonitoringService monitoringService
     ) {
         this.exportMapper = exportMapper;
         this.archiveBuilder = archiveBuilder;
         this.objectStorage = objectStorage;
+        this.monitoringService = monitoringService;
     }
 
     @Scheduled(fixedDelayString = "${app.export.poll-interval:2000}")
     public void dispatch() {
+        if (monitoringService.isExportQueuePaused()) {
+            return;
+        }
         for (Long taskId : exportMapper.selectPendingIds()) {
             process(taskId);
         }

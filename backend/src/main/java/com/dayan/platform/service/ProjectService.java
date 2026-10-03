@@ -58,6 +58,7 @@ public interface ProjectService {
     List<ProjectUserOption> userOptions(
             long id,
             String keyword,
+            String personnelType,
             long operatorId,
             boolean platformAdmin
     );

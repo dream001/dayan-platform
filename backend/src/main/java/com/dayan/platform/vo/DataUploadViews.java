@@ -1,5 +1,6 @@
 package com.dayan.platform.vo;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -32,6 +33,7 @@ public final class DataUploadViews {
             String originalName,
             String contentType,
             long sizeBytes,
+            BigDecimal durationSeconds,
             String status,
             OffsetDateTime createdAt
     ) {

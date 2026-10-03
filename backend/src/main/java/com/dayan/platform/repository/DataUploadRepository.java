@@ -2,6 +2,7 @@ package com.dayan.platform.repository;
 
 import com.dayan.platform.vo.DataUploadViews.DatasetView;
 import com.dayan.platform.vo.DataUploadViews.ProjectOption;
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
@@ -76,7 +77,7 @@ public class DataUploadRepository {
     public DatasetView findDuplicate(long projectId, String name, String fingerprint) {
         List<DatasetView> rows = jdbcTemplate.query("""
                 SELECT d.id, d.project_id, d.name, d.data_type, f.original_name, f.content_type,
-                       d.size_bytes, d.metadata_status AS status, d.created_at
+                       d.size_bytes, d.duration_seconds, d.metadata_status AS status, d.created_at
                 FROM data_dataset d
                 JOIN file_metadata f ON f.id = d.file_id
                 WHERE d.deleted = FALSE
@@ -93,13 +94,14 @@ public class DataUploadRepository {
                 INSERT INTO data_upload_session
                     (id, project_id, storage_key, data_type, original_name, content_type,
                      total_size, chunk_size, total_chunks, object_key, source_fingerprint,
-                     robot_type, status, uploader_id, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+                     robot_type, duration_seconds, status, uploader_id, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
                 """,
                 session.id(), session.projectId(), session.storageKey(), session.dataType(),
                 session.originalName(), session.contentType(), session.totalSize(),
                 session.chunkSize(), session.totalChunks(), session.objectKey(),
-                session.sourceFingerprint(), session.robotType(), session.uploaderId(),
+                session.sourceFingerprint(), session.robotType(), session.durationSeconds(),
+                session.uploaderId(),
                 session.expiresAt()
         );
     }
@@ -172,15 +174,15 @@ public class DataUploadRepository {
         return jdbcTemplate.queryForObject("""
                 INSERT INTO data_dataset
                     (project_id, name, file_id, data_type, size_bytes, robot_code,
-                     uploader_id, metadata_status, source_fingerprint)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     duration_seconds, uploader_id, metadata_status, source_fingerprint)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id, project_id, name, data_type,
                           ? AS original_name, ? AS content_type,
-                          size_bytes, metadata_status AS status, created_at
+                          size_bytes, duration_seconds, metadata_status AS status, created_at
                 """, this::mapDataset,
                 session.projectId(), datasetName(session.originalName()), fileId,
                 session.dataType(), session.totalSize(), session.robotType(),
-                session.uploaderId(), status, session.sourceFingerprint(),
+                session.durationSeconds(), session.uploaderId(), status, session.sourceFingerprint(),
                 session.originalName(), session.contentType()
         );
     }
@@ -195,6 +197,7 @@ public class DataUploadRepository {
             String objectKey,
             String fingerprint,
             String robotType,
+            BigDecimal durationSeconds,
             String status,
             long uploaderId,
             String bucketName,
@@ -202,7 +205,7 @@ public class DataUploadRepository {
     ) {
         SessionData session = new SessionData(
                 UUID.randomUUID(), projectId, storageKey, dataType, originalName, contentType,
-                size, 0, 1, objectKey, fingerprint, robotType, "SUCCESS",
+                size, 0, 1, objectKey, fingerprint, robotType, durationSeconds, "SUCCESS",
                 uploaderId, OffsetDateTime.now()
         );
         return createDataset(session, bucketName, etag, status);
@@ -217,6 +220,7 @@ public class DataUploadRepository {
                 rs.getString("original_name"),
                 rs.getString("content_type"),
                 rs.getLong("size_bytes"),
+                rs.getBigDecimal("duration_seconds"),
                 rs.getString("status"),
                 rs.getObject("created_at", OffsetDateTime.class)
         );
@@ -236,6 +240,7 @@ public class DataUploadRepository {
                 rs.getString("object_key"),
                 rs.getString("source_fingerprint"),
                 rs.getString("robot_type"),
+                rs.getBigDecimal("duration_seconds"),
                 rs.getString("status"),
                 rs.getLong("uploader_id"),
                 rs.getObject("expires_at", OffsetDateTime.class)
@@ -260,6 +265,7 @@ public class DataUploadRepository {
             String objectKey,
             String sourceFingerprint,
             String robotType,
+            BigDecimal durationSeconds,
             String status,
             long uploaderId,
             OffsetDateTime expiresAt

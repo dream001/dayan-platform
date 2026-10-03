@@ -188,11 +188,13 @@ public class ProjectController {
             @AuthenticationPrincipal Jwt jwt,
             Authentication authentication,
             @PathVariable long id,
-            @RequestParam(required = false) String keyword
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String personnelType
     ) {
         return projectService.userOptions(
                 id,
                 keyword,
+                personnelType,
                 userId(jwt),
                 isPlatformAdmin(authentication)
         );

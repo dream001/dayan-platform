@@ -4,6 +4,7 @@ import com.dayan.platform.dto.DataUploadDtos.CreateSessionRequest;
 import com.dayan.platform.vo.DataUploadViews.DatasetView;
 import com.dayan.platform.vo.DataUploadViews.UploadOptions;
 import com.dayan.platform.vo.DataUploadViews.UploadSessionView;
+import java.math.BigDecimal;
 import java.util.UUID;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,6 +18,7 @@ public interface DataUploadService {
             String dataType,
             String sourceFingerprint,
             String robotType,
+            BigDecimal durationSeconds,
             MultipartFile file,
             long userId
     );

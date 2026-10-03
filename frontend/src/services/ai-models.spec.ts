@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   changeAiModelStatus,
   createAiModel,
+  debugAiModel,
   getAiModels,
   testAiModel,
 } from './ai-models'
@@ -54,7 +55,7 @@ describe('AI model API contracts', () => {
     })).resolves.toEqual(page)
   })
 
-  it('uses model-scoped create, status, and test endpoints', async () => {
+  it('uses model-scoped create, status, test, and debug endpoints', async () => {
     const requests: Array<{ method?: string; url?: string; body?: unknown }> = []
     http.defaults.adapter = async (config) => {
       requests.push({
@@ -77,6 +78,7 @@ describe('AI model API contracts', () => {
     })
     await changeAiModelStatus(7, false)
     await testAiModel(7)
+    await debugAiModel(7, 'Explain this image')
 
     expect(requests).toEqual([
       {
@@ -102,6 +104,11 @@ describe('AI model API contracts', () => {
         method: 'post',
         url: '/basic/models/7/test',
         body: undefined,
+      },
+      {
+        method: 'post',
+        url: '/basic/models/7/debug',
+        body: { input: 'Explain this image' },
       },
     ])
   })

@@ -68,6 +68,7 @@ class CloudStorageIntegrationTest extends PostgreSqlIntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(storageJson()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.provider").value("VOLCENGINE_TOS"))
                 .andExpect(jsonPath("$.data.status").value("NEVER"))
                 .andReturn()).path("id").asLong();
 
@@ -100,7 +101,7 @@ class CloudStorageIntegrationTest extends PostgreSqlIntegrationTestSupport {
                 {
                   "storageKey": "integration-storage",
                   "name": "Integration storage",
-                  "provider": "MINIO",
+                  "provider": "VOLCENGINE_TOS",
                   "endpoint": "%s",
                   "region": "",
                   "bucket": "%s",

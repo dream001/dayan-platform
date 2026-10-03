@@ -22,6 +22,7 @@ export interface DatasetView {
   metadataStatus: DatasetMetadataStatus
   openShared: boolean
   tags: string[]
+  preview: DatasetPreview | null
   createdAt: string
   updatedAt: string
 }

@@ -70,7 +70,12 @@ public final class ProjectViews {
     ) {
     }
 
-    public record ProjectUserOption(long id, String username, String displayName) {
+    public record ProjectUserOption(
+            long id,
+            String username,
+            String displayName,
+            String personnelType
+    ) {
     }
 
     public record ProjectOverview(long total, long active, long planning, long archived) {

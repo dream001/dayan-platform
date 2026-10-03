@@ -27,6 +27,7 @@ public final class DatasetViews {
             String metadataStatus,
             boolean openShared,
             List<String> tags,
+            Preview preview,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
     ) {

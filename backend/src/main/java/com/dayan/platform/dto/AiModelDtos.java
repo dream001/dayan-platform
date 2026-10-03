@@ -15,6 +15,7 @@ public final class AiModelDtos {
         MULTIMODAL,
         RERANK,
         IMAGE,
+        VIDEO,
         AUDIO
     }
 
@@ -32,6 +33,11 @@ public final class AiModelDtos {
 
     public record ModelStatusRequest(
             boolean enabled
+    ) {
+    }
+
+    public record ModelDebugRequest(
+            @NotBlank @Size(max = 4000) String input
     ) {
     }
 }

@@ -10,6 +10,7 @@ import {
   VideoPause,
   VideoPlay,
 } from '@element-plus/icons-vue'
+import { isAxiosError } from 'axios'
 import { ElMessage } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -33,7 +34,14 @@ import type {
 } from '@/types/admin'
 import { formatBytes } from '@/utils/format'
 
-type QueueStatus = 'pending' | 'uploading' | 'paused' | 'success' | 'error' | 'cancelled'
+type QueueStatus =
+  | 'pending'
+  | 'uploading'
+  | 'confirming'
+  | 'paused'
+  | 'success'
+  | 'error'
+  | 'cancelled'
 
 interface UploadItem {
   id: string
@@ -42,6 +50,7 @@ interface UploadItem {
   storageKey: string
   dataType: DataUploadType
   robotType?: string
+  durationSeconds: number | null
   status: QueueStatus
   progress: number
   loaded: number
@@ -90,13 +99,8 @@ const queue = reactive<UploadItem[]>([])
 const selectedMode = computed(() => modes.find((mode) => mode.type === dataType.value) ?? modes[0]!)
 const ready = computed(() => projectId.value != null && Boolean(storageKey.value))
 const activeUploads = computed(() => queue.filter((item) =>
-  ['pending', 'uploading', 'paused'].includes(item.status),
+  ['pending', 'uploading', 'confirming', 'paused'].includes(item.status),
 ))
-const videoCompatible = computed(() => {
-  if (dataType.value !== 'VIDEO') return true
-  return 'MediaStreamTrackProcessor' in window
-    && ('captureStream' in HTMLVideoElement.prototype || 'mozCaptureStream' in HTMLVideoElement.prototype)
-})
 
 async function loadOptions() {
   loading.value = true
@@ -117,10 +121,6 @@ function chooseFiles() {
     ElMessage.warning(projectId.value == null ? '请先选择项目' : '请选择云存储')
     return
   }
-  if (!videoCompatible.value) {
-    ElMessage.error('浏览器不兼容，请使用 Chrome 94+ 或 Edge 94+')
-    return
-  }
   fileInput.value?.click()
 }
 
@@ -134,13 +134,14 @@ function enqueue(files: FileList | File[]) {
       ElMessage.error(`不能上传空文件：${file.name}`)
       continue
     }
-    const item: UploadItem = {
+    const item = reactive<UploadItem>({
       id: crypto.randomUUID(),
       file,
       projectId: projectId.value!,
       storageKey: storageKey.value,
       dataType: dataType.value,
       robotType: robotType.value.trim() || undefined,
+      durationSeconds: null,
       status: 'pending',
       progress: 0,
       loaded: 0,
@@ -151,7 +152,7 @@ function enqueue(files: FileList | File[]) {
       error: '',
       controller: null,
       startedAt: 0,
-    }
+    })
     queue.unshift(item)
     void start(item)
   }
@@ -164,6 +165,41 @@ async function fingerprint(file: File) {
   return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('')
 }
 
+function readVideoDuration(file: File) {
+  return new Promise<number>((resolve, reject) => {
+    const video = document.createElement('video')
+    const objectUrl = URL.createObjectURL(file)
+    const timeout = window.setTimeout(() => finish(new Error('读取视频时长超时')), 15_000)
+
+    function cleanup() {
+      window.clearTimeout(timeout)
+      video.onloadedmetadata = null
+      video.onerror = null
+      video.removeAttribute('src')
+      video.load()
+      URL.revokeObjectURL(objectUrl)
+    }
+
+    function finish(reason?: Error) {
+      const duration = video.duration
+      cleanup()
+      if (reason) {
+        reject(reason)
+      } else if (Number.isFinite(duration) && duration > 0) {
+        resolve(Math.round(duration * 1000) / 1000)
+      } else {
+        reject(new Error('无法读取有效的视频时长'))
+      }
+    }
+
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => finish()
+    video.onerror = () => finish(new Error('无法解析视频元数据，请检查文件是否损坏'))
+    video.src = objectUrl
+    video.load()
+  })
+}
+
 function updateProgress(item: UploadItem, loaded: number) {
   item.loaded = Math.min(loaded, item.file.size)
   item.progress = Math.min(100, Math.round((item.loaded / item.file.size) * 100))
@@ -174,29 +210,23 @@ function updateProgress(item: UploadItem, loaded: number) {
 
 async function start(item: UploadItem) {
   if (!options.value) return
-  item.status = 'uploading'
+  item.status = 'pending'
   item.error = ''
   item.controller = new AbortController()
   item.startedAt = performance.now()
   try {
+    if (item.dataType === 'VIDEO' && item.durationSeconds == null) {
+      item.durationSeconds = await readVideoDuration(item.file)
+    }
     const sourceFingerprint = await fingerprint(item.file)
+    item.status = 'uploading'
+    item.progress = Math.max(item.progress, 1)
     if (item.file.size <= options.value.multipartThreshold) {
-      item.dataset = await uploadDataDirect(
-        {
-          projectId: item.projectId,
-          storageKey: item.storageKey,
-          dataType: item.dataType,
-          sourceFingerprint,
-          robotType: item.robotType,
-        },
-        item.file,
-        (loaded) => updateProgress(item, loaded),
-        item.controller.signal,
-      )
+      item.dataset = await uploadDirectWithRecovery(item, sourceFingerprint)
     } else {
       await uploadMultipart(item, sourceFingerprint)
     }
-    if (item.status !== 'uploading' || !item.dataset) return
+    if (!['uploading', 'confirming'].includes(item.status) || !item.dataset) return
     updateProgress(item, item.file.size)
     item.status = 'success'
   } catch (reason) {
@@ -206,6 +236,35 @@ async function start(item: UploadItem) {
   } finally {
     item.controller = null
   }
+}
+
+async function uploadDirectWithRecovery(item: UploadItem, sourceFingerprint: string) {
+  const payload = {
+    projectId: item.projectId,
+    storageKey: item.storageKey,
+    dataType: item.dataType,
+    sourceFingerprint,
+    robotType: item.robotType,
+    durationSeconds: item.durationSeconds ?? undefined,
+  }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await uploadDataDirect(
+        payload,
+        item.file,
+        (loaded) => {
+          updateProgress(item, loaded)
+          if (loaded >= item.file.size) item.status = 'confirming'
+        },
+        item.controller!.signal,
+      )
+    } catch (reason) {
+      const recoverable = isAxiosError(reason) && (!reason.response || reason.code === 'ECONNABORTED')
+      if (!recoverable || attempt === 1 || item.controller?.signal.aborted) throw reason
+      item.status = 'confirming'
+    }
+  }
+  throw new Error('Upload confirmation failed')
 }
 
 async function uploadMultipart(item: UploadItem, sourceFingerprint: string) {
@@ -221,6 +280,7 @@ async function uploadMultipart(item: UploadItem, sourceFingerprint: string) {
         totalSize: item.file.size,
         sourceFingerprint,
         robotType: item.robotType,
+        durationSeconds: item.durationSeconds ?? undefined,
       })
   if (session.existingDataset) {
     item.dataset = session.existingDataset
@@ -282,8 +342,9 @@ function viewDataset(item: UploadItem) {
 
 function statusText(item: UploadItem) {
   return {
-    pending: '等待开始',
+    pending: '正在校验文件',
     uploading: '正在上传',
+    confirming: '正在确认入库',
     paused: '已暂停',
     success: item.dataset?.status === 'PROCESSING' ? '等待预处理' : '上传成功',
     error: '上传失败',
@@ -321,7 +382,10 @@ onBeforeUnmount(() => {
       description="将本地采集数据导入项目，上传完成后统一进入数据管理。"
     />
 
-    <StatePanel v-if="loading" state="loading" />
+    <StatePanel
+      v-if="loading"
+      state="loading"
+    />
     <StatePanel
       v-else-if="error"
       state="error"
@@ -333,7 +397,10 @@ onBeforeUnmount(() => {
       <section class="upload-context">
         <label>
           <span>所属项目</span>
-          <el-select v-model="projectId" placeholder="请先选择项目">
+          <el-select
+            v-model="projectId"
+            placeholder="请先选择项目"
+          >
             <el-option
               v-for="project in options.projects"
               :key="project.id"
@@ -344,7 +411,10 @@ onBeforeUnmount(() => {
         </label>
         <label>
           <span>云存储</span>
-          <el-select v-model="storageKey" placeholder="请选择云存储">
+          <el-select
+            v-model="storageKey"
+            placeholder="请选择云存储"
+          >
             <el-option
               v-for="storage in options.storages"
               :key="storage.key"
@@ -372,28 +442,28 @@ onBeforeUnmount(() => {
             type="button"
             @click="dataType = mode.type"
           >
-            <el-icon :size="19"><component :is="mode.icon" /></el-icon>
+            <el-icon :size="19">
+              <component :is="mode.icon" />
+            </el-icon>
             <strong>{{ mode.label }}</strong>
             <small>{{ mode.hint }}</small>
           </button>
         </div>
-        <label v-if="dataType === 'HDF5'" class="robot-field">
+        <label
+          v-if="dataType === 'HDF5'"
+          class="robot-field"
+        >
           <span>机器人类型</span>
-          <el-input v-model="robotType" placeholder="请输入预处理管道配置的机器人类型" />
+          <el-input
+            v-model="robotType"
+            placeholder="请输入预处理管道配置的机器人类型"
+          />
         </label>
-        <el-alert
-          v-if="!videoCompatible"
-          type="error"
-          title="浏览器不兼容"
-          description="视频转换需要 MediaStreamTrackProcessor 与 captureStream，请改用 Chrome 94+ 或 Edge 94+。"
-          :closable="false"
-          show-icon
-        />
       </section>
 
       <input
         ref="fileInput"
-        class="visually-hidden"
+        class="data-file-input"
         type="file"
         multiple
         :accept="selectedMode.accept"
@@ -402,7 +472,7 @@ onBeforeUnmount(() => {
       <button
         v-permission="'data:upload:create'"
         class="data-dropzone"
-        :class="{ 'data-dropzone--dragging': dragging, 'data-dropzone--disabled': !ready || !videoCompatible }"
+        :class="{ 'data-dropzone--dragging': dragging, 'data-dropzone--disabled': !ready }"
         type="button"
         @click="chooseFiles"
         @dragenter.prevent="dragging = true"
@@ -410,7 +480,9 @@ onBeforeUnmount(() => {
         @dragleave.prevent="dragging = false"
         @drop.prevent="dragging = false; enqueue($event.dataTransfer?.files ?? [])"
       >
-        <el-icon :size="28"><UploadFilled /></el-icon>
+        <el-icon :size="28">
+          <UploadFilled />
+        </el-icon>
         <strong>拖拽{{ selectedMode.label }}到此处，或点击选择</strong>
         <span v-if="!ready">{{ projectId == null ? '请先选择项目' : '请选择云存储' }}</span>
         <span v-else>支持批量选择；空文件会被拒绝</span>
@@ -429,11 +501,21 @@ onBeforeUnmount(() => {
           title="等待选择数据"
           description="选择接入方式并添加文件后，逐文件状态会显示在这里。"
         />
-        <ul v-else class="upload-queue">
-          <li v-for="item in queue" :key="item.id">
+        <ul
+          v-else
+          class="upload-queue"
+        >
+          <li
+            v-for="item in queue"
+            :key="item.id"
+          >
             <div class="queue-file">
               <strong>{{ item.file.name }}</strong>
-              <span>{{ formatBytes(item.file.size) }} · {{ statusText(item) }}</span>
+              <span>
+                {{ formatBytes(item.file.size) }}
+                <template v-if="item.durationSeconds"> · {{ formatDuration(item.durationSeconds) }}</template>
+                · {{ statusText(item) }}
+              </span>
               <small v-if="item.error">{{ item.error }}</small>
             </div>
             <div class="queue-progress">
@@ -441,7 +523,7 @@ onBeforeUnmount(() => {
                 :percentage="item.progress"
                 :status="item.status === 'success' ? 'success' : item.status === 'error' ? 'exception' : undefined"
               />
-              <span v-if="item.status === 'uploading'">
+              <span v-if="['uploading', 'confirming'].includes(item.status)">
                 {{ formatBytes(item.loaded) }} / {{ formatBytes(item.file.size) }}
                 · {{ formatBytes(item.speed) }}/s · 剩余 {{ formatDuration(item.eta) }}
               </span>
@@ -455,17 +537,49 @@ onBeforeUnmount(() => {
               >
                 查看数据集
               </el-button>
-              <el-tooltip v-if="item.status === 'uploading' && item.sessionId" content="暂停">
-                <el-button :icon="VideoPause" circle aria-label="暂停上传" @click="pause(item)" />
+              <el-tooltip
+                v-if="item.status === 'uploading' && item.sessionId"
+                content="暂停"
+              >
+                <el-button
+                  :icon="VideoPause"
+                  circle
+                  aria-label="暂停上传"
+                  @click="pause(item)"
+                />
               </el-tooltip>
-              <el-tooltip v-if="item.status === 'paused'" content="继续">
-                <el-button :icon="VideoPlay" circle aria-label="继续上传" @click="resume(item)" />
+              <el-tooltip
+                v-if="item.status === 'paused'"
+                content="继续"
+              >
+                <el-button
+                  :icon="VideoPlay"
+                  circle
+                  aria-label="继续上传"
+                  @click="resume(item)"
+                />
               </el-tooltip>
-              <el-tooltip v-if="item.status === 'error'" content="重试">
-                <el-button :icon="Refresh" circle aria-label="重试上传" @click="retry(item)" />
+              <el-tooltip
+                v-if="item.status === 'error'"
+                content="重试"
+              >
+                <el-button
+                  :icon="Refresh"
+                  circle
+                  aria-label="重试上传"
+                  @click="retry(item)"
+                />
               </el-tooltip>
-              <el-tooltip v-if="!['success', 'cancelled'].includes(item.status)" content="取消">
-                <el-button :icon="Close" circle aria-label="取消上传" @click="cancel(item)" />
+              <el-tooltip
+                v-if="!['success', 'cancelled'].includes(item.status)"
+                content="取消"
+              >
+                <el-button
+                  :icon="Close"
+                  circle
+                  aria-label="取消上传"
+                  @click="cancel(item)"
+                />
               </el-tooltip>
             </div>
           </li>
@@ -579,6 +693,10 @@ onBeforeUnmount(() => {
 .robot-field {
   width: min(420px, 100%);
   margin-top: 16px;
+}
+
+.data-file-input {
+  display: none;
 }
 
 .data-dropzone {

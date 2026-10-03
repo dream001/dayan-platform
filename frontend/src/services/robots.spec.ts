@@ -30,6 +30,7 @@ function apiResponse(config: InternalAxiosRequestConfig, value: unknown) {
 const payload = {
   name: 'test-arm',
   iconUrl: 'https://example.com/robot.png',
+  iconFileId: 23,
   titleZh: '测试机械臂',
   titleEn: 'Test Arm',
   robotType: 'DESKTOP_ARM' as const,

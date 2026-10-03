@@ -4,6 +4,7 @@ export type ModelType =
   | 'MULTIMODAL'
   | 'RERANK'
   | 'IMAGE'
+  | 'VIDEO'
   | 'AUDIO'
 
 export type ModelTestStatus = 'NEVER' | 'SUCCESS' | 'FAILED'
@@ -49,5 +50,14 @@ export interface ModelTestResult {
   success: boolean
   message: string
   latencyMs: number
+  testedAt: string
+}
+
+export interface ModelDebugResult {
+  success: boolean
+  statusCode: number
+  latencyMs: number
+  output: string
+  message: string
   testedAt: string
 }

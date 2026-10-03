@@ -33,4 +33,14 @@ public final class AiModelViews {
             OffsetDateTime testedAt
     ) {
     }
+
+    public record ModelDebugResult(
+            boolean success,
+            int statusCode,
+            long latencyMs,
+            String output,
+            String message,
+            OffsetDateTime testedAt
+    ) {
+    }
 }

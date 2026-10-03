@@ -1,9 +1,18 @@
 <script setup lang="ts">
-import { BarChart, GraphChart, HeatmapChart, SankeyChart, SunburstChart } from 'echarts/charts'
+import {
+  BarChart,
+  GraphChart,
+  HeatmapChart,
+  LineChart,
+  PieChart,
+  SankeyChart,
+  SunburstChart,
+} from 'echarts/charts'
 import {
   AriaComponent,
   CalendarComponent,
   GridComponent,
+  LegendComponent,
   TooltipComponent,
   VisualMapComponent,
 } from 'echarts/components'
@@ -19,6 +28,9 @@ use([
   GraphChart,
   GridComponent,
   HeatmapChart,
+  LegendComponent,
+  LineChart,
+  PieChart,
   SankeyChart,
   SunburstChart,
   TooltipComponent,
@@ -27,6 +39,7 @@ use([
 
 const props = defineProps<{
   option: EChartsCoreOption
+  height?: number
 }>()
 
 const root = ref<HTMLElement>()
@@ -59,6 +72,7 @@ onBeforeUnmount(() => {
   <div
     ref="root"
     class="chart-canvas"
+    :style="height ? { '--chart-height': `${height}px` } : undefined"
     role="img"
   />
 </template>
@@ -66,8 +80,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .chart-canvas {
   width: 100%;
-  height: 100%;
-  min-height: 480px;
+  height: var(--chart-height, 100%);
+  min-height: var(--chart-height, 480px);
 }
 
 @media (max-width: 700px) {

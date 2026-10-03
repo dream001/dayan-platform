@@ -17,6 +17,24 @@ const statistics = {
   totalFileSizeBytes: 2048,
   recentOperationCount: 3,
   recentOperations: [],
+  dataMetricsAvailable: true,
+  projectDistributionAvailable: true,
+  collectionDistributionAvailable: true,
+  qualityDistributionAvailable: true,
+  datasetCount: 18,
+  datasetDurationSeconds: 7200,
+  annotationCount: 16,
+  annotationDurationSeconds: 3600,
+  annotationPassRate: 92.5,
+  annotationResolveRate: 80,
+  projectDistribution: [],
+  collectionStatusDistribution: [],
+  annotationQualityDistribution: [],
+  dataQualityDistribution: [],
+  dataGrowthTrend: [],
+  dataQualityTrend: [],
+  annotationGrowthTrend: [],
+  annotationQualityTrend: [],
   generatedAt: '2026-10-02T10:00:00Z',
 }
 
@@ -45,9 +63,9 @@ describe('WorkspaceView', () => {
 
     expect(wrapper.get('h1').text()).toBe('工作台')
     expect(wrapper.text()).toContain('18')
-    expect(wrapper.text()).toContain('16 个已启用')
-    expect(wrapper.text()).toContain('2.0 KB')
-    expect(wrapper.text()).toContain('暂无近期操作')
+    expect(wrapper.text()).toContain('2h 0m')
+    expect(wrapper.text()).toContain('16')
+    expect(wrapper.text()).toContain('暂无数据')
   })
 
   it('renders retryable feedback when the dashboard request fails', async () => {

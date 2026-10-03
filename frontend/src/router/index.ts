@@ -157,6 +157,28 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'data/skills',
+        alias: '/skills',
+        name: 'skill-library',
+        component: () => import('@/views/SkillLibraryView.vue'),
+        meta: {
+          titleKey: 'skillLibrary.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:skill:view',
+        },
+      },
+      {
+        path: 'data/skills/:skill',
+        alias: '/skills/:skill',
+        name: 'skill-library-detail',
+        component: () => import('@/views/SkillLibraryView.vue'),
+        meta: {
+          titleKey: 'skillLibrary.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:skill:view',
+        },
+      },
+      {
         path: 'data/charts',
         alias: '/charts',
         redirect: (to) => ({
@@ -173,6 +195,16 @@ const routes: RouteRecordRaw[] = [
           titleKey: 'charts.title',
           eyebrowKey: 'shell.eyebrows.module',
           permission: 'data:chart:view',
+        },
+      },
+      {
+        path: 'data/visualization',
+        name: 'data-visualization',
+        component: () => import('@/views/VisualizationView.vue'),
+        meta: {
+          titleKey: 'visualization.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'data:visual:view',
         },
       },
       {
@@ -230,16 +262,6 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        path: 'files',
-        name: 'files',
-        component: () => import('@/views/FilesView.vue'),
-        meta: {
-          titleKey: 'files.title',
-          eyebrowKey: 'shell.eyebrows.content',
-          permission: 'file:view',
-        },
-      },
-      {
         path: 'audit/logs',
         name: 'audit-logs',
         component: () => import('@/views/AuditLogsView.vue'),
@@ -270,6 +292,26 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'basic/devices',
+        name: 'devices',
+        component: () => import('@/views/DevicesView.vue'),
+        meta: {
+          titleKey: 'devices.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:device:view',
+        },
+      },
+      {
+        path: 'basic/devices/:agentId',
+        name: 'device-detail',
+        component: () => import('@/views/DevicesView.vue'),
+        meta: {
+          titleKey: 'devices.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:device:view',
+        },
+      },
+      {
         path: 'basic/storage',
         name: 'storage-management',
         component: () => import('@/views/StorageManagementView.vue'),
@@ -277,6 +319,30 @@ const routes: RouteRecordRaw[] = [
           titleKey: 'storages.title',
           eyebrowKey: 'shell.eyebrows.module',
           permission: 'basic:storage:view',
+        },
+      },
+      {
+        path: 'basic/mqtt',
+        name: 'mqtt-management',
+        component: () => import('@/views/MqttManagementView.vue'),
+        meta: {
+          titleKey: 'mqtt.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:mqtt:view',
+        },
+      },
+      {
+        path: 'workflows',
+        redirect: '/workflows/overview',
+      },
+      {
+        path: 'workflows/:tab(overview|manage|match-rules|action-rules|runs)',
+        name: 'workflows',
+        component: () => import('@/views/WorkflowsView.vue'),
+        meta: {
+          titleKey: 'workflows.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:workflow:view',
         },
       },
       {
@@ -297,6 +363,16 @@ const routes: RouteRecordRaw[] = [
           titleKey: 'aiAgents.title',
           eyebrowKey: 'shell.eyebrows.module',
           permission: 'basic:agent:view',
+        },
+      },
+      {
+        path: 'basic/operations',
+        name: 'operations-monitoring',
+        component: () => import('@/views/OperationsMonitoringView.vue'),
+        meta: {
+          titleKey: 'operations.title',
+          eyebrowKey: 'shell.eyebrows.module',
+          permission: 'basic:operations:view',
         },
       },
     ],

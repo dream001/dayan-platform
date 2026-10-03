@@ -1,4 +1,17 @@
 export type QualityRuleScope = 'GLOBAL' | 'PROJECT'
+export type QualityDataType =
+  | 'MCAP'
+  | 'BAG'
+  | 'VIDEO'
+  | 'AUDIO'
+  | 'IMAGE'
+  | 'HDF5'
+  | 'LEROBOT'
+  | 'MEITUAN'
+  | 'LUMOS'
+  | 'ZC0TOUCH'
+  | 'SENSEXPERIENCE'
+  | 'BVH'
 export type QualityAssertionType = 'NUMERIC' | 'REQUIRED_TOPIC' | 'FORBIDDEN_TOPIC'
 export type QualitySeverity = 'ERROR' | 'WARNING'
 export type QualityMetricScope = 'ALL' | 'TOPIC' | 'SCHEMA'
@@ -25,6 +38,7 @@ export interface QualityRulePayload {
   description: string
   scope: QualityRuleScope
   projectId: number | null
+  dataType: QualityDataType
   datasetPattern: string
   enabled: boolean
   priority: number
@@ -95,6 +109,7 @@ export interface QualityDatasetOption {
   id: number
   name: string
   projectName: string | null
+  dataType: QualityDataType
 }
 
 export interface QualityRunResult {

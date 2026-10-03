@@ -10,6 +10,7 @@ import com.dayan.platform.dto.RbacDtos.UserUpdateRequest;
 import com.dayan.platform.service.UserManagementService;
 import com.dayan.platform.vo.PageResponse;
 import com.dayan.platform.vo.RbacViews.UserFilterOptions;
+import com.dayan.platform.vo.RbacViews.UserRoleCounts;
 import com.dayan.platform.vo.RbacViews.UserSummary;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -68,6 +69,17 @@ public class UserManagementController {
     @PreAuthorize("hasAuthority('system:user:view')")
     public UserFilterOptions filterOptions() {
         return userManagementService.filterOptions();
+    }
+
+    @GetMapping("/role-counts")
+    @PreAuthorize("hasAuthority('system:user:view')")
+    public UserRoleCounts roleCounts(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) Boolean enabled,
+            @RequestParam(required = false) @Min(1) Long projectId
+    ) {
+        return userManagementService.roleCounts(keyword, departmentId, enabled, projectId);
     }
 
     @GetMapping("/{id}")

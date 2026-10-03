@@ -11,6 +11,7 @@ import {
   RefreshRight,
   Search,
   Switch,
+  View,
   VideoPlay,
 } from '@element-plus/icons-vue'
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -104,6 +105,7 @@ const detailOpen = ref(false)
 const detailLoading = ref(false)
 const detail = ref<DatasetDetail | null>(null)
 const playbackRate = ref(1)
+const mediaError = ref(false)
 
 const trashOpen = ref(false)
 const trashItems = ref<DatasetView[]>([])
@@ -369,6 +371,7 @@ async function openDetail(row: DatasetView) {
   detailLoading.value = true
   detail.value = null
   playbackRate.value = 1
+  mediaError.value = false
   try {
     detail.value = await getDataset(row.id)
   } catch (reason) {
@@ -377,6 +380,10 @@ async function openDetail(row: DatasetView) {
   } finally {
     detailLoading.value = false
   }
+}
+
+async function retryMedia() {
+  if (detail.value) await openDetail(detail.value.dataset)
 }
 
 type MediaKind = 'video' | 'audio' | 'image' | 'mcap' | 'other'
@@ -388,6 +395,13 @@ function mediaKind(dataType: string): MediaKind {
   if (value.includes('IMAGE')) return 'image'
   if (value.includes('MCAP')) return 'mcap'
   return 'other'
+}
+
+function primeVideoThumbnail(event: Event) {
+  const video = event.currentTarget as HTMLVideoElement
+  if (Number.isFinite(video.duration) && video.duration > 0) {
+    video.currentTime = Math.min(0.15, video.duration / 2)
+  }
 }
 
 const detailKind = computed<MediaKind>(() =>
@@ -830,12 +844,37 @@ onMounted(async () => {
             width="84"
           >
             <template #default="{ row }">
-              <div
+              <button
                 class="thumb"
                 :class="`thumb--${mediaKind(row.dataType)}`"
+                type="button"
+                :aria-label="t('dataset.viewMedia', { name: row.name })"
+                @click="openDetail(row)"
               >
-                <el-icon><VideoPlay /></el-icon>
-              </div>
+                <span class="thumb__fallback">
+                  <el-icon><VideoPlay /></el-icon>
+                </span>
+                <img
+                  v-if="row.preview?.url && mediaKind(row.dataType) === 'image'"
+                  :src="row.preview.url"
+                  :alt="row.name"
+                  @error="($event.currentTarget as HTMLImageElement).style.display = 'none'"
+                >
+                <video
+                  v-else-if="row.preview?.url && mediaKind(row.dataType) === 'video'"
+                  :src="row.preview.url"
+                  muted
+                  playsinline
+                  preload="metadata"
+                  @loadedmetadata="primeVideoThumbnail"
+                />
+                <span
+                  v-if="row.preview?.url && ['image', 'video'].includes(mediaKind(row.dataType))"
+                  class="thumb__action"
+                >
+                  <el-icon><VideoPlay /></el-icon>
+                </span>
+              </button>
             </template>
           </el-table-column>
           <el-table-column
@@ -949,6 +988,23 @@ onMounted(async () => {
               </span>
             </template>
           </el-table-column>
+          <el-table-column
+            :label="t('common.operation')"
+            width="82"
+            fixed="right"
+          >
+            <template #default="{ row }">
+              <el-tooltip :content="t('dataset.view')">
+                <el-button
+                  :icon="View"
+                  circle
+                  text
+                  :aria-label="t('dataset.viewMedia', { name: row.name })"
+                  @click="openDetail(row)"
+                />
+              </el-tooltip>
+            </template>
+          </el-table-column>
         </el-table>
       </div>
       <div class="pagination-row">
@@ -1040,21 +1096,43 @@ onMounted(async () => {
       >
         <template v-if="detail">
           <div class="player-pane">
+            <div
+              v-if="mediaError"
+              class="player-placeholder"
+            >
+              <el-icon :size="26"><VideoPlay /></el-icon>
+              <p>{{ t('dataset.previewLoadFailed') }}</p>
+              <el-button
+                size="small"
+                @click="retryMedia"
+              >
+                {{ t('state.retry') }}
+              </el-button>
+            </div>
             <video
-              v-if="detailKind === 'video' && detail.preview"
+              v-else-if="detailKind === 'video' && detail.preview"
               :src="detail.preview.url"
               controls
+              playsinline
+              preload="metadata"
               :playbackRate="playbackRate"
+              @loadeddata="mediaError = false"
+              @error="mediaError = true"
             />
             <audio
               v-else-if="detailKind === 'audio' && detail.preview"
               :src="detail.preview.url"
               controls
+              preload="metadata"
+              @loadeddata="mediaError = false"
+              @error="mediaError = true"
             />
             <img
               v-else-if="detailKind === 'image' && detail.preview"
               :src="detail.preview.url"
               :alt="detail.dataset.name"
+              @load="mediaError = false"
+              @error="mediaError = true"
             >
             <div
               v-else-if="detailKind === 'mcap'"
@@ -1391,25 +1469,62 @@ onMounted(async () => {
 }
 
 .thumb {
+  position: relative;
   display: grid;
   width: 52px;
   height: 40px;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
   place-items: center;
+  border: 1px solid #35424d;
   border-radius: 5px;
   color: #fff;
-  background: linear-gradient(135deg, #46536b, #2c3345);
+  background: #343f52;
 }
 
 .thumb--audio {
-  background: linear-gradient(135deg, #6b5a9c, #453a6b);
+  background: #51477a;
 }
 
 .thumb--image {
-  background: linear-gradient(135deg, #4a8a78, #33604f);
+  background: #376d5e;
 }
 
 .thumb--mcap {
-  background: linear-gradient(135deg, #9c7a4a, #6b5530);
+  background: #725b35;
+}
+
+.thumb img,
+.thumb video {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb__fallback {
+  display: grid;
+  place-items: center;
+}
+
+.thumb__action {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgb(15 24 29 / 18%);
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.thumb:hover .thumb__action,
+.thumb:focus-visible .thumb__action {
+  opacity: 1;
 }
 
 .name-link {
@@ -1536,6 +1651,7 @@ onMounted(async () => {
 }
 
 .player-pane {
+  position: relative;
   display: grid;
   min-height: 320px;
   place-items: center;
@@ -1549,6 +1665,7 @@ onMounted(async () => {
   display: block;
   max-width: 100%;
   max-height: 48vh;
+  object-fit: contain;
 }
 
 .player-pane audio {

@@ -12,12 +12,14 @@ import com.dayan.platform.repository.mapper.RoleMapper;
 import com.dayan.platform.repository.mapper.UserAccountMapper;
 import com.dayan.platform.repository.mapper.UserRoleMapper;
 import com.dayan.platform.repository.query.OptionRow;
+import com.dayan.platform.repository.query.UserRoleCountsRow;
 import com.dayan.platform.repository.query.UserSummaryRow;
 import com.dayan.platform.service.UserManagementService;
 import com.dayan.platform.vo.PageResponse;
 import com.dayan.platform.vo.RbacViews.RoleBrief;
 import com.dayan.platform.vo.RbacViews.UserFilterOptions;
 import com.dayan.platform.vo.RbacViews.UserProjectOption;
+import com.dayan.platform.vo.RbacViews.UserRoleCounts;
 import com.dayan.platform.vo.RbacViews.UserSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -102,6 +104,31 @@ public class UserManagementServiceImpl implements UserManagementService {
         return new UserFilterOptions(userAccountMapper.selectProjectOptions().stream()
                 .map(this::projectOption)
                 .toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserRoleCounts roleCounts(
+            String keyword,
+            Long departmentId,
+            Boolean enabled,
+            Long projectId
+    ) {
+        UserRoleCountsRow row = userAccountMapper.selectRoleCounts(
+                normalizeNullable(keyword, false),
+                departmentId,
+                enabled,
+                projectId
+        );
+        return new UserRoleCounts(
+                row.getTotal(),
+                row.getVisitor(),
+                row.getCollector(),
+                row.getAnnotator(),
+                row.getAuditor(),
+                row.getManager(),
+                row.getAdministrator()
+        );
     }
 
     @Override

@@ -211,6 +211,18 @@ class RbacManagementIntegrationTest extends PostgreSqlIntegrationTestSupport {
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items[0].username").value("filter-collector"));
 
+        mockMvc.perform(get(SYSTEM + "/users/role-counts")
+                        .header("Authorization", bearer(adminToken))
+                        .queryParam("projectId", Long.toString(projectId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.visitor").value(0))
+                .andExpect(jsonPath("$.data.collector").value(1))
+                .andExpect(jsonPath("$.data.annotator").value(0))
+                .andExpect(jsonPath("$.data.auditor").value(0))
+                .andExpect(jsonPath("$.data.manager").value(0))
+                .andExpect(jsonPath("$.data.administrator").value(0));
+
         mockMvc.perform(get(SYSTEM + "/users/filter-options")
                         .header("Authorization", bearer(adminToken)))
                 .andExpect(status().isOk())

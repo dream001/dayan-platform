@@ -5,6 +5,7 @@ import type {
   ProjectMemberPayload,
   ProjectOverview,
   ProjectPayload,
+  PersonnelType,
   ProjectQuery,
   ProjectStatus,
   ProjectSummary,
@@ -56,9 +57,13 @@ export async function removeProjectMember(id: number, userId: number) {
   await http.delete<ApiResponse<null>>(`/basic/projects/${id}/members/${userId}`)
 }
 
-export async function getProjectUserOptions(id: number, keyword?: string) {
+export async function getProjectUserOptions(
+  id: number,
+  personnelType?: PersonnelType,
+  keyword?: string,
+) {
   return data(await http.get<ApiResponse<ProjectUserOption[]>>(
     `/basic/projects/${id}/user-options`,
-    { params: { keyword } },
+    { params: { personnelType, keyword } },
   ))
 }

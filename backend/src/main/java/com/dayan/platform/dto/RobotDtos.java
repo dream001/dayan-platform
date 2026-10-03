@@ -2,6 +2,7 @@ package com.dayan.platform.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 public final class RobotDtos {
@@ -27,7 +28,8 @@ public final class RobotDtos {
 
     public record RobotRequest(
             @NotBlank @Size(max = 255) String name,
-            @NotBlank @Size(max = 1000) String iconUrl,
+            @Size(max = 1000) String iconUrl,
+            @Positive Long iconFileId,
             @Size(max = 255) String titleZh,
             @Size(max = 255) String titleEn,
             @NotNull RobotType robotType,
